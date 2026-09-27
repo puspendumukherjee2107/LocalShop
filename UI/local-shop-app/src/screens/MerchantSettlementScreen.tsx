@@ -116,7 +116,7 @@ export default function MerchantSettlementScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
   heroCard: { backgroundColor: '#007AFF', borderRadius: 16, padding: 20, marginBottom: 24, elevation: 2 },
-  heroTitle: { color: 'rgba(255,255,255,0.76)', fontSize: 13, fontWeight: '600', uppercase: true },
+  heroTitle: { color: 'rgba(255,255,255,0.76)', fontSize: 13, fontWeight: '600', textTransform: 'uppercase' },
   heroAmount: { color: '#FFF', fontSize: 32, fontWeight: '800', marginVertical: 6 },
   heroSub: { color: 'rgba(255,255,255,0.85)', fontSize: 13, lineHeight: 18, marginBottom: 16 },
   settleBtn: { backgroundColor: '#FFF', borderRadius: 10, height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },

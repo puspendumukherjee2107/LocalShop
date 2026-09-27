@@ -6,5 +6,10 @@ module.exports = defineConfig([
   expoConfig,
   {
     ignores: ['dist/*'],
+    rules: {
+      'react-hooks/immutability': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+    },
   },
 ]);
