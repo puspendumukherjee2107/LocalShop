@@ -427,7 +427,7 @@ export default function OrderTrackingScreen() {
               {false && (
                 <TouchableOpacity 
                   style={styles.waBtn} 
-                  onPress={() => openWhatsAppToMerchant('9876543210', item.shopName, item.id, item.itemsText)}
+                  onPress={() => openWhatsAppToMerchant('9876543210', item.shopName, item.id, item.itemsText || '')}
                 >
                   <Text style={styles.waBtnText}>💬 WhatsApp Store</Text>
                 </TouchableOpacity>

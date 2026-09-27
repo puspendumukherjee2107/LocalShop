@@ -50,7 +50,7 @@ export async function openWhatsAppToMerchant(
   merchantPhone: string = '9876500000',
   shopName: string = 'Kirana Junction',
   orderId: string,
-  itemsSummary: string
+  itemsSummary: string = ''
 ) {
   const msg = `Hello ${shopName}! 👋\n\nRegarding my Order *#${orderId}*:\n${itemsSummary}\n\nPlease let me know when it will be ready or if any items need substitution. Thank you!`;
   return openWhatsApp(merchantPhone, msg);

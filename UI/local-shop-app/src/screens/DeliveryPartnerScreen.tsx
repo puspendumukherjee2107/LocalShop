@@ -99,7 +99,7 @@ export default function DeliveryPartnerScreen() {
     const unsubStatus = signalRService.onOrderStatusUpdated(() => {
       loadDeliveryOrders();
     });
-    const unsubChat = signalRService.onReceiveOrderMessage((msg: OrderMessage) => {
+    const unsubChat = signalRService.onOrderMessage((msg: OrderMessage) => {
       if (chatOrder && msg.orderId === chatOrder.id) {
         setMessages(prev => [...prev, msg]);
       }

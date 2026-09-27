@@ -12,6 +12,11 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.localstore.app",
+      "versionCode": 1,
+      "permissions": [
+        "INTERNET"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -43,6 +48,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "9d5bd987-f81a-465e-85f8-be36e0612904"
+      }
+    },
+    "owner": "puspendu_dev"
   }
 }
