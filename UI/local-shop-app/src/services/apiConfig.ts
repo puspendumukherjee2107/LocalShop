@@ -1,17 +1,18 @@
 import { Platform } from 'react-native';
 
-const LOCAL_IP = '192.168.29.19';
+const CLOUDFLARE_API = 'https://events-probably-anthropology-bottle.trycloudflare.com/api';
+const CLOUDFLARE_HUB = 'https://events-probably-anthropology-bottle.trycloudflare.com/hubs/orders';
 
 const ENV_API_URL = process.env.EXPO_PUBLIC_API_URL;
 const ENV_HUB_URL = process.env.EXPO_PUBLIC_HUB_URL;
 
 export const BASE_URL = ENV_API_URL || (Platform.OS === 'web'
   ? 'http://localhost:5000/api'
-  : `http://${LOCAL_IP}:5000/api`);
+  : CLOUDFLARE_API);
 
 export const HUB_URL = ENV_HUB_URL || (Platform.OS === 'web'
   ? 'http://localhost:5000/hubs/orders'
-  : `http://${LOCAL_IP}:5000/hubs/orders`);
+  : CLOUDFLARE_HUB);
 
 export const setAuthToken = (token?: string) => {
   const value = token?.trim();
