@@ -88,15 +88,22 @@ try
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<StoreDbContext>();
-    db.Database.ExecuteSqlRaw("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
-    EnsureUserSecurityColumns(db);
+    db.Database.EnsureCreated();
+    try
+    {
+        db.Database.ExecuteSqlRaw("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
+        EnsureUserSecurityColumns(db);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[DB Note] Startup lock: {ex.Message}");
+    }
+    SeedDemoAccounts(app.Services);
 }
 catch (Exception ex)
 {
-    Console.WriteLine($"[DB Note] Startup lock: {ex.Message}");
+    Console.WriteLine($"[DB Note] Startup database init: {ex.Message}");
 }
-
-SeedDemoAccounts(app.Services);
 
 app.MapControllers();
 app.MapHub<LocalShop.Api.Hubs.OrderHub>("/hubs/orders");
