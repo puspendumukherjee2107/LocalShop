@@ -20,7 +20,7 @@ import RegisterScreen from '../../src/screens/Auth/RegisterScreen';
 import MerchantAuthScreen from '../../src/screens/MerchantAuthScreen';
 import AdminLoginScreen from '../../src/screens/AdminLoginScreen';
 import AdminDashboardScreen from '../../src/screens/AdminDashboardScreen';
-import { BASE_URL, FIXED_CLOUD_API, LOCAL_LAN_API, setServerEndpoint } from '../../src/services/apiConfig';
+import { BASE_URL, FIXED_CLOUD_API, LOCAL_LAN_API, setServerEndpoint, setAuthToken } from '../../src/services/apiConfig';
 
 type MainRole = 'customer' | 'merchant' | 'admin';
 
@@ -71,6 +71,7 @@ export default function HomeScreen() {
                      (mainRole === 'admin' && adminAuth);
 
   const handleSwitchRole = () => {
+    setAuthToken(undefined);
     setMainRole(null);
     setCustomerAuth(false);
     setCurrentUser(null);
@@ -80,24 +81,12 @@ export default function HomeScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Log Out',
-      'Are you sure you want to log out of your account?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Log Out',
-          style: 'destructive',
-          onPress: () => {
-            setCustomerAuth(false);
-            setCurrentUser(null);
-            setMerchantShop(null);
-            setAdminAuth(false);
-            setCustScreenState('login');
-          }
-        }
-      ]
-    );
+    setAuthToken(undefined);
+    setCustomerAuth(false);
+    setCurrentUser(null);
+    setMerchantShop(null);
+    setAdminAuth(false);
+    setCustScreenState('login');
   };
 
   return (
