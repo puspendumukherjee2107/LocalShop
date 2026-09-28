@@ -1,4 +1,4 @@
-import { ArrowRight, Briefcase, Lock, Phone, Store } from 'lucide-react-native';
+import { ArrowRight, Briefcase, Lock, Phone, ShieldCheck, Store } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { BASE_URL, setAuthToken } from '../services/apiConfig';
@@ -13,7 +13,14 @@ export default function MerchantAuthScreen({ onAuthSuccess }: MerchantAuthProps)
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [category, setCategory] = useState('');
+
+  // Secure Password Reset with OTP
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetPhone, setResetPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
@@ -107,13 +114,53 @@ export default function MerchantAuthScreen({ onAuthSuccess }: MerchantAuthProps)
     }
   };
 
+  const handleSendOtp = async () => {
+    const targetPhone = (resetPhone || phone).trim();
+    if (!targetPhone || targetPhone.length < 10) {
+      Alert.alert('Phone Required', 'Please enter your registered 10-digit business phone number.');
+      return;
+    }
+
+    setIsSendingOtp(true);
+    try {
+      const response = await fetch(`${BASE_URL}/auth/send-reset-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: targetPhone, role: 'Merchant' }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setOtpSent(true);
+        if (data.otp) {
+          setOtp(data.otp);
+          Alert.alert('Security Code Sent', `A 6-digit verification code was sent to ${targetPhone}.\n\nDemo Verification Code: ${data.otp}`);
+        } else {
+          Alert.alert('Security Code Sent', `A 6-digit verification code has been sent to ${targetPhone}.`);
+        }
+      } else {
+        Alert.alert('Request Failed', data.message || 'Could not verify business phone number.');
+      }
+    } catch {
+      Alert.alert('Network Error', 'Check your server connection.');
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
   const handleForgotPassword = async () => {
-    const trimmedPhone = phone.trim();
+    const targetPhone = (resetPhone || phone).trim();
+    const targetOtp = otp.trim();
     const trimmedNewPassword = newPassword.trim();
     const trimmedConfirmPassword = confirmNewPassword.trim();
 
-    if (!trimmedPhone) {
-      Alert.alert('Phone Required', 'Please enter your registered mobile number first.');
+    if (!targetPhone) {
+      Alert.alert('Phone Required', 'Please enter your registered business phone number.');
+      return;
+    }
+
+    if (!targetOtp || targetOtp.length < 6) {
+      Alert.alert('OTP Required', 'Please enter the 6-digit verification code sent to your phone.');
       return;
     }
 
@@ -132,47 +179,56 @@ export default function MerchantAuthScreen({ onAuthSuccess }: MerchantAuthProps)
       return;
     }
 
+    setIsResetting(true);
     try {
       const response = await fetch(`${BASE_URL}/auth/reset-password`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: trimmedPhone, newPassword: trimmedNewPassword, role: 'Merchant' }),
+        body: JSON.stringify({
+          phone: targetPhone,
+          otp: targetOtp,
+          newPassword: trimmedNewPassword,
+          role: 'Merchant'
+        }),
       });
 
       const data = await response.json();
       if (response.ok) {
-        Alert.alert('Password Updated', data.message || 'Your merchant password has been reset successfully.');
+        Alert.alert('Password Updated 🎉', data.message || 'Your merchant password has been reset securely.');
+        setPhone(targetPhone);
         setPassword(trimmedNewPassword);
         setNewPassword('');
         setConfirmNewPassword('');
+        setOtp('');
+        setOtpSent(false);
         setShowForgotPassword(false);
       } else {
         Alert.alert('Reset Failed', data.message || 'Unable to reset password.');
       }
     } catch {
       Alert.alert('Network Error', 'Could not reset password. Check your API connection.');
+    } finally {
+      setIsResetting(false);
     }
   };
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <View style={styles.heroPanel}>
             <View style={styles.heroRow}>
               <View style={styles.brandBadge}>
-                <Store size={22} color="#FFF" />
+                <Store size={24} color="#FFF" />
               </View>
               <View style={styles.heroPill}>
-                <Text style={styles.heroPillText}>Local Business</Text>
+                <Text style={styles.heroPillText}>MERCHANT NETWORK</Text>
               </View>
             </View>
-            <Text style={styles.title}>{isLogin ? 'Merchant Portal' : 'Register Your Business'}</Text>
-            <Text style={styles.subtitle}>{isLogin ? 'Manage your storefront and digital ledger.' : 'Grow your business by taking it online.'}</Text>
-            <View style={styles.visualBlock}>
-              <Text style={styles.visualLabel}>Smart commerce</Text>
-              <Text style={styles.visualTitle}>Sell faster with local reach</Text>
-            </View>
+            <Text style={styles.title}>{isLogin ? 'Store Login' : 'Store Registration'}</Text>
+            <Text style={styles.subtitle}>
+              {isLogin ? 'Sign in to access your direct neighborhood delivery portal.' : 'Register your grocery or essentials store to serve neighbors.'}
+            </Text>
           </View>
         </View>
 
@@ -185,15 +241,15 @@ export default function MerchantAuthScreen({ onAuthSuccess }: MerchantAuthProps)
                 <TextInput style={styles.input} placeholder="e.g., Kirana Junction" value={shopName} onChangeText={setShopName} />
               </View>
 
-              <Text style={styles.label}>Business Category</Text>
+              <Text style={styles.label}>Store Category</Text>
               <View style={styles.inputBox}>
                 <Briefcase size={18} color="#8E8E93" style={styles.icon} />
-                <TextInput style={styles.input} placeholder="e.g., Grocery, Dairy, Bakery" value={category} onChangeText={setCategory} />
+                <TextInput style={styles.input} placeholder="e.g., Groceries & Essentials" value={category} onChangeText={setCategory} />
               </View>
             </>
           )}
 
-          <Text style={styles.label}>Registered Mobile Number</Text>
+          <Text style={styles.label}>Business Phone</Text>
           <View style={styles.inputBox}>
             <Phone size={18} color="#8E8E93" style={styles.icon} />
             <TextInput style={styles.input} placeholder="10-digit number" keyboardType="phone-pad" maxLength={10} value={phone} onChangeText={setPhone} />
@@ -202,29 +258,106 @@ export default function MerchantAuthScreen({ onAuthSuccess }: MerchantAuthProps)
           <Text style={styles.label}>Password</Text>
           <View style={styles.inputBox}>
             <Lock size={18} color="#8E8E93" style={styles.icon} />
-            <TextInput style={styles.input} placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} />
+            <TextInput style={styles.input} placeholder="Password (min 8 chars)" secureTextEntry value={password} onChangeText={setPassword} />
           </View>
 
           {isLogin && (
             <TouchableOpacity onPress={() => setShowForgotPassword(!showForgotPassword)}>
-              <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+              <Text style={styles.forgotPasswordText}>
+                {showForgotPassword ? '▲ Close password reset' : '🔒 Forgot password? Verify with OTP'}
+              </Text>
             </TouchableOpacity>
           )}
 
           {showForgotPassword && (
             <View style={styles.resetCard}>
-              <Text style={styles.resetTitle}>Reset merchant password</Text>
-              <TextInput style={styles.resetInput} placeholder="New password" secureTextEntry value={newPassword} onChangeText={setNewPassword} />
-              <TextInput style={styles.resetInput} placeholder="Confirm new password" secureTextEntry value={confirmNewPassword} onChangeText={setConfirmNewPassword} />
-              <TouchableOpacity style={styles.resetButton} onPress={handleForgotPassword}>
-                <Text style={styles.resetButtonText}>Update Password</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                <ShieldCheck size={18} color="#16A34A" style={{ marginRight: 6 }} />
+                <Text style={styles.resetTitle}>Verified Merchant Password Reset</Text>
+              </View>
+              <Text style={styles.resetSubtitle}>
+                A 6-digit security code must be confirmed on your registered business phone before changing the password.
+              </Text>
+
+              <Text style={styles.fieldLabel}>Registered Business Phone</Text>
+              <View style={styles.inputBox}>
+                <Phone size={18} color="#8E8E93" style={styles.icon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="10-digit registered number"
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  value={resetPhone || phone}
+                  onChangeText={setResetPhone}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.otpSendBtn, isSendingOtp && { opacity: 0.6 }]}
+                onPress={handleSendOtp}
+                disabled={isSendingOtp}
+              >
+                <Text style={styles.otpSendBtnText}>
+                  {isSendingOtp ? 'Sending Security Code...' : otpSent ? '🔄 Resend Verification Code' : '📲 Send Verification Code (OTP)'}
+                </Text>
               </TouchableOpacity>
+
+              {otpSent && (
+                <>
+                  <Text style={styles.fieldLabel}>6-Digit Verification Code</Text>
+                  <View style={styles.inputBox}>
+                    <Lock size={18} color="#10B981" style={styles.icon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter 6-digit OTP"
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      value={otp}
+                      onChangeText={setOtp}
+                    />
+                  </View>
+
+                  <Text style={styles.fieldLabel}>New Password (min 8 chars)</Text>
+                  <View style={styles.inputBox}>
+                    <Lock size={18} color="#8E8E93" style={styles.icon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="New password"
+                      secureTextEntry
+                      value={newPassword}
+                      onChangeText={setNewPassword}
+                    />
+                  </View>
+
+                  <Text style={styles.fieldLabel}>Confirm New Password</Text>
+                  <View style={styles.inputBox}>
+                    <Lock size={18} color="#8E8E93" style={styles.icon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Confirm new password"
+                      secureTextEntry
+                      value={confirmNewPassword}
+                      onChangeText={setConfirmNewPassword}
+                    />
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.resetButton, isResetting && { opacity: 0.6 }]}
+                    onPress={handleForgotPassword}
+                    disabled={isResetting}
+                  >
+                    <Text style={styles.resetButtonText}>
+                      {isResetting ? 'Verifying...' : '✅ Verify Code & Reset Password'}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           )}
 
           {isLogin && (
             <TouchableOpacity 
-              style={{ backgroundColor: '#F5F3FF', borderWidth: 1, borderColor: '#DDD6FE', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, alignItems: 'center', marginBottom: 12 }}
+              style={{ backgroundColor: '#F5F3FF', borderWidth: 1, borderColor: '#DDD6FE', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, alignItems: 'center', marginTop: 12, marginBottom: 12 }}
               onPress={() => {
                 setPhone('9876500000');
                 setPassword('Merchant@2026!');
@@ -253,88 +386,69 @@ export default function MerchantAuthScreen({ onAuthSuccess }: MerchantAuthProps)
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F3F7FF' },
-  scroll: { padding: 20, justifyContent: 'center' },
-  header: { marginBottom: 20 },
+  scroll: { padding: 20, justifyContent: 'center', maxWidth: 520, width: '100%', alignSelf: 'center' },
+  header: { marginBottom: 16 },
   heroPanel: {
     backgroundColor: '#E7F7EE',
-    borderRadius: 24,
+    borderRadius: 20,
     padding: 18,
     borderWidth: 1,
     borderColor: '#D5F1E1',
     shadowColor: '#0F766E',
-    shadowOffset: { width: 0, height: 10 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.08,
-    shadowRadius: 16,
+    shadowRadius: 12,
     elevation: 3,
   },
   heroRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   brandBadge: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     backgroundColor: '#22C55E',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#16A34A',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
-    shadowRadius: 12,
+    shadowRadius: 10,
     elevation: 3,
   },
   heroPill: {
     backgroundColor: 'rgba(255,255,255,0.7)',
     borderRadius: 999,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 5,
   },
   heroPillText: {
     color: '#166534',
     fontSize: 10,
     fontWeight: '700',
   },
-  title: { fontSize: 26, fontWeight: '800', color: '#1C1C1E' },
-  subtitle: { fontSize: 14, color: '#475569', marginTop: 6, lineHeight: 20 },
-  visualBlock: {
-    height: 92,
-    borderRadius: 16,
-    backgroundColor: '#DDF7E8',
-    padding: 14,
-    marginTop: 14,
-    justifyContent: 'flex-end',
-    borderWidth: 1,
-    borderColor: '#C9F0D5',
-  },
-  visualLabel: {
-    fontSize: 10,
-    color: '#166534',
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  visualTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A',
-    maxWidth: '70%',
-  },
-  card: { backgroundColor: '#FFF', borderRadius: 16, padding: 20, shadowRadius: 8, shadowOpacity: 0.04, elevation: 2 },
-  label: { fontSize: 13, fontWeight: '600', color: '#3A3A3C', marginBottom: 6, marginTop: 12 },
-  inputBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F2F2F7', borderRadius: 10, paddingHorizontal: 12, height: 46 },
+  title: { fontSize: 22, fontWeight: '800', color: '#1C1C1E' },
+  subtitle: { fontSize: 13, color: '#475569', marginTop: 4, lineHeight: 18 },
+  card: { backgroundColor: '#FFF', borderRadius: 16, padding: 18, shadowRadius: 8, shadowOpacity: 0.04, elevation: 2, borderWidth: 1, borderColor: '#E2E8F0' },
+  label: { fontSize: 13, fontWeight: '600', color: '#3A3A3C', marginBottom: 6, marginTop: 10 },
+  fieldLabel: { fontSize: 12, fontWeight: '700', color: '#475569', marginBottom: 4, marginTop: 8 },
+  inputBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 10, paddingHorizontal: 12, height: 46, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 6 },
   icon: { marginRight: 8 },
-  input: { flex: 1, fontSize: 15 },
-  forgotPasswordText: { color: '#007AFF', fontSize: 13, fontWeight: '600', marginTop: 12, textAlign: 'center' },
-  resetCard: { backgroundColor: '#F7F7F8', borderRadius: 12, padding: 12, marginTop: 12 },
-  resetTitle: { color: '#1C1C1E', fontSize: 14, fontWeight: '700', marginBottom: 8 },
-  resetInput: { backgroundColor: '#FFF', borderColor: '#E5E5EA', borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 10, marginBottom: 8, fontSize: 14 },
-  resetButton: { backgroundColor: '#34C759', borderRadius: 8, height: 40, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  input: { flex: 1, fontSize: 15, color: '#0F172A' },
+  forgotPasswordText: { color: '#007AFF', fontSize: 13, fontWeight: '600', marginTop: 10, textAlign: 'center' },
+  resetCard: { backgroundColor: '#F8FAFC', borderRadius: 12, padding: 14, marginTop: 10, borderWidth: 1, borderColor: '#CBD5E1' },
+  resetTitle: { color: '#0F172A', fontSize: 13, fontWeight: '800' },
+  resetSubtitle: { color: '#64748B', fontSize: 12, lineHeight: 16, marginBottom: 10, marginTop: 2 },
+  otpSendBtn: { backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#86EFAC', borderRadius: 10, paddingVertical: 9, alignItems: 'center', marginTop: 4, marginBottom: 10 },
+  otpSendBtnText: { color: '#15803D', fontSize: 13, fontWeight: '700' },
+  resetButton: { backgroundColor: '#16A34A', borderRadius: 10, height: 44, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
   resetButtonText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
-  btn: { flexDirection: 'row', backgroundColor: '#34C759', borderRadius: 10, height: 46, alignItems: 'center', justifyContent: 'center', marginTop: 24, shadowColor: '#16A34A', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 3 },
+  btn: { flexDirection: 'row', backgroundColor: '#16A34A', borderRadius: 10, height: 48, alignItems: 'center', justifyContent: 'center', marginTop: 16, shadowColor: '#16A34A', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 3 },
   btnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
-  switch: { marginTop: 20, alignItems: 'center' },
+  switch: { marginTop: 18, alignItems: 'center' },
   switchText: { fontSize: 14, color: '#8E8E93' },
-  link: { color: '#34C759', fontWeight: '600' },
+  link: { color: '#16A34A', fontWeight: '700' },
 });

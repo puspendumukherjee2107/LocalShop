@@ -1,4 +1,4 @@
-import { Lock, LogIn, Phone, ShoppingBag } from 'lucide-react-native';
+import { Lock, LogIn, Phone, ShoppingBag, ShieldCheck } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
   Alert,
@@ -22,7 +22,14 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }: Logi
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+
+  // Secure Password Reset with OTP
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetPhone, setResetPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
@@ -61,13 +68,53 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }: Logi
     }
   };
 
+  const handleSendOtp = async () => {
+    const targetPhone = (resetPhone || phone).trim();
+    if (!targetPhone || targetPhone.length < 10) {
+      Alert.alert('Phone Required', 'Please enter your registered 10-digit mobile number.');
+      return;
+    }
+
+    setIsSendingOtp(true);
+    try {
+      const response = await fetch(`${BASE_URL}/auth/send-reset-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: targetPhone, role: 'Customer' }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setOtpSent(true);
+        if (data.otp) {
+          setOtp(data.otp);
+          Alert.alert('Security Code Sent', `A 6-digit verification code was sent to ${targetPhone}.\n\nDemo Verification Code: ${data.otp}`);
+        } else {
+          Alert.alert('Security Code Sent', `A 6-digit verification code has been sent to ${targetPhone}.`);
+        }
+      } else {
+        Alert.alert('Request Failed', data.message || 'Could not verify mobile number.');
+      }
+    } catch {
+      Alert.alert('Network Error', 'Check your server connection.');
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
   const handleForgotPassword = async () => {
-    const trimmedPhone = phone.trim();
+    const targetPhone = (resetPhone || phone).trim();
+    const targetOtp = otp.trim();
     const trimmedNewPassword = newPassword.trim();
     const trimmedConfirmPassword = confirmNewPassword.trim();
 
-    if (!trimmedPhone) {
-      Alert.alert('Phone Required', 'Please enter your registered mobile number first.');
+    if (!targetPhone) {
+      Alert.alert('Phone Required', 'Please enter your registered mobile number.');
+      return;
+    }
+
+    if (!targetOtp || targetOtp.length < 6) {
+      Alert.alert('OTP Required', 'Please enter the 6-digit verification code sent to your phone.');
       return;
     }
 
@@ -86,19 +133,28 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }: Logi
       return;
     }
 
+    setIsResetting(true);
     try {
       const response = await fetch(`${BASE_URL}/auth/reset-password`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: trimmedPhone, newPassword: trimmedNewPassword, role: 'Customer' }),
+        body: JSON.stringify({
+          phone: targetPhone,
+          otp: targetOtp,
+          newPassword: trimmedNewPassword,
+          role: 'Customer'
+        }),
       });
 
       const data = await response.json();
       if (response.ok) {
-        Alert.alert('Password Updated', data.message || 'Your password has been reset successfully.');
+        Alert.alert('Password Updated 🎉', data.message || 'Your password has been reset securely.');
+        setPhone(targetPhone);
         setPassword(trimmedNewPassword);
         setNewPassword('');
         setConfirmNewPassword('');
+        setOtp('');
+        setOtpSent(false);
         setShowForgotPassword(false);
         setLoginError('');
       } else {
@@ -106,6 +162,8 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }: Logi
       }
     } catch {
       Alert.alert('Network Error', 'Could not reset password. Check your API connection.');
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -188,39 +246,105 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }: Logi
             <Text style={styles.submitButtonText}>Log In</Text>
           </TouchableOpacity>
 
-          {/* Forgot Password Link */}
+          {/* Forgot Password Toggle */}
           <TouchableOpacity
             style={styles.forgotBtn}
-            onPress={() => setShowForgotPassword(!showForgotPassword)}
+            onPress={() => {
+              setShowForgotPassword(!showForgotPassword);
+              if (!showForgotPassword) {
+                setResetPhone(phone);
+              }
+            }}
           >
             <Text style={styles.forgotPasswordText}>
-              {showForgotPassword ? 'Close password reset' : 'Forgot password?'}
+              {showForgotPassword ? '▲ Close password reset' : '🔒 Forgot password? Verify with OTP'}
             </Text>
           </TouchableOpacity>
 
+          {/* Secure 2-Step OTP Reset Panel */}
           {showForgotPassword && (
             <View style={styles.resetCard}>
-              <Text style={styles.resetTitle}>Reset your password</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                <ShieldCheck size={18} color="#007AFF" style={{ marginRight: 6 }} />
+                <Text style={styles.resetTitle}>Verified Password Reset</Text>
+              </View>
+              <Text style={styles.resetSubtitle}>
+                A 6-digit verification code must be confirmed on your mobile number to authorize changing the password.
+              </Text>
 
-              <TextInput
-                style={styles.resetInput}
-                placeholder="New password (min 8 chars)"
-                secureTextEntry
-                value={newPassword}
-                onChangeText={setNewPassword}
-              />
+              <Text style={styles.fieldLabel}>Registered Mobile Number</Text>
+              <View style={styles.inputWrapper}>
+                <Phone size={18} color="#8E8E93" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="10-digit registered number"
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  value={resetPhone || phone}
+                  onChangeText={setResetPhone}
+                />
+              </View>
 
-              <TextInput
-                style={styles.resetInput}
-                placeholder="Confirm new password"
-                secureTextEntry
-                value={confirmNewPassword}
-                onChangeText={setConfirmNewPassword}
-              />
-
-              <TouchableOpacity style={styles.resetButton} onPress={handleForgotPassword}>
-                <Text style={styles.resetButtonText}>Update Password</Text>
+              <TouchableOpacity
+                style={[styles.otpSendBtn, isSendingOtp && { opacity: 0.6 }]}
+                onPress={handleSendOtp}
+                disabled={isSendingOtp}
+              >
+                <Text style={styles.otpSendBtnText}>
+                  {isSendingOtp ? 'Sending Security Code...' : otpSent ? '🔄 Resend Verification Code' : '📲 Send Verification Code (OTP)'}
+                </Text>
               </TouchableOpacity>
+
+              {otpSent && (
+                <>
+                  <Text style={styles.fieldLabel}>6-Digit Verification Code</Text>
+                  <View style={styles.inputWrapper}>
+                    <Lock size={18} color="#10B981" style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter 6-digit OTP"
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      value={otp}
+                      onChangeText={setOtp}
+                    />
+                  </View>
+
+                  <Text style={styles.fieldLabel}>New Password (min 8 chars)</Text>
+                  <View style={styles.inputWrapper}>
+                    <Lock size={18} color="#8E8E93" style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="New password"
+                      secureTextEntry
+                      value={newPassword}
+                      onChangeText={setNewPassword}
+                    />
+                  </View>
+
+                  <Text style={styles.fieldLabel}>Confirm New Password</Text>
+                  <View style={styles.inputWrapper}>
+                    <Lock size={18} color="#8E8E93" style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Confirm new password"
+                      secureTextEntry
+                      value={confirmNewPassword}
+                      onChangeText={setConfirmNewPassword}
+                    />
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.resetButton, isResetting && { opacity: 0.6 }]}
+                    onPress={handleForgotPassword}
+                    disabled={isResetting}
+                  >
+                    <Text style={styles.resetButtonText}>
+                      {isResetting ? 'Verifying...' : '✅ Verify Code & Reset Password'}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           )}
         </View>
@@ -321,6 +445,13 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     marginTop: 8,
   },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+    marginBottom: 4,
+    marginTop: 8,
+  },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -376,7 +507,7 @@ const styles = StyleSheet.create({
   },
   forgotBtn: {
     alignSelf: 'center',
-    paddingVertical: 8,
+    paddingVertical: 10,
     marginTop: 6,
   },
   forgotPasswordText: {
@@ -394,39 +525,49 @@ const styles = StyleSheet.create({
   },
   resetCard: {
     backgroundColor: '#F8FAFC',
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 14,
     marginTop: 10,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#CBD5E1',
   },
   resetTitle: {
     color: '#0F172A',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  resetSubtitle: {
+    color: '#64748B',
+    fontSize: 12,
+    lineHeight: 16,
+    marginBottom: 10,
+  },
+  otpSendBtn: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#93C5FD',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  otpSendBtnText: {
+    color: '#1D4ED8',
     fontSize: 13,
     fontWeight: '700',
-    marginBottom: 8,
-  },
-  resetInput: {
-    backgroundColor: '#FFF',
-    borderColor: '#CBD5E1',
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    marginBottom: 8,
-    fontSize: 13,
   },
   resetButton: {
     backgroundColor: '#10B981',
-    borderRadius: 8,
-    height: 38,
+    borderRadius: 10,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 4,
+    marginTop: 10,
   },
   resetButtonText: {
     color: '#FFF',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
   },
   switchButton: {

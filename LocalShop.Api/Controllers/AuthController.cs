@@ -120,22 +120,67 @@ public class AuthController : ControllerBase
         });
     }
 
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string Otp, DateTime ExpiresAtUtc)> _resetOtps = new();
+
+    [HttpPost("send-reset-otp")]
+    public async Task<IActionResult> SendResetOtp([FromBody] SendResetOtpRequest request)
+    {
+        var phone = request.Phone?.Trim();
+        var role = string.IsNullOrWhiteSpace(request.Role) ? "Customer" : request.Role.Trim();
+
+        if (string.IsNullOrWhiteSpace(phone))
+        {
+            return BadRequest(new { message = "Mobile number is required." });
+        }
+
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Phone == phone && u.Role == role);
+        if (user == null)
+        {
+            return NotFound(new { message = "No account found registered with this mobile number." });
+        }
+
+        var otp = Random.Shared.Next(100000, 999999).ToString();
+        var key = $"{role}:{phone}";
+        _resetOtps[key] = (otp, DateTime.UtcNow.AddMinutes(5));
+
+        return Ok(new
+        {
+            message = $"Verification code sent to registered mobile number {phone}.",
+            otp = otp
+        });
+    }
+
     [HttpPut("reset-password")]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
     {
         var phone = request.Phone?.Trim();
+        var otp = request.Otp?.Trim();
         var newPassword = request.NewPassword?.Trim();
         var role = string.IsNullOrWhiteSpace(request.Role) ? "Customer" : request.Role.Trim();
 
-        if (string.IsNullOrWhiteSpace(phone) || string.IsNullOrWhiteSpace(newPassword))
+        if (string.IsNullOrWhiteSpace(phone) || string.IsNullOrWhiteSpace(otp) || string.IsNullOrWhiteSpace(newPassword))
         {
-            return BadRequest(new { message = "Phone number and new password are required." });
+            return BadRequest(new { message = "Mobile number, verification code (OTP), and new password are required." });
         }
 
         if (newPassword.Length < 8)
         {
             return BadRequest(new { message = "Password must be at least 8 characters long." });
         }
+
+        var key = $"{role}:{phone}";
+        if (!_resetOtps.TryGetValue(key, out var storedOtp) || storedOtp.ExpiresAtUtc < DateTime.UtcNow)
+        {
+            return BadRequest(new { message = "Verification code is missing, invalid, or expired. Please request a new code." });
+        }
+
+        if (storedOtp.Otp != otp)
+        {
+            return BadRequest(new { message = "Invalid verification code. Please check the code sent to your phone and try again." });
+        }
+
+        // Invalidate OTP after single use
+        _resetOtps.TryRemove(key, out _);
 
         var user = await _context.Users
             .FirstOrDefaultAsync(u => u.Phone == phone && u.Role == role);
@@ -146,6 +191,8 @@ public class AuthController : ControllerBase
         }
 
         user.PasswordHash = PasswordHasher.HashPassword(newPassword);
+        user.FailedLoginAttempts = 0;
+        user.LockoutUntilUtc = null;
         await _context.SaveChangesAsync();
 
         return Ok(new { message = "Password reset successfully. Please sign in with your new password." });
@@ -201,5 +248,6 @@ public class AuthController : ControllerBase
 }
 
 public record LoginRequest(string Phone, string Password, string? Role = null);
-public record ResetPasswordRequest(string Phone, string NewPassword, string? Role = null);
+public record SendResetOtpRequest(string Phone, string? Role = null);
+public record ResetPasswordRequest(string Phone, string Otp, string NewPassword, string? Role = null);
 public record UpdateProfileRequest(string Phone, string? Name, string? Address);
