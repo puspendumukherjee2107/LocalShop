@@ -1,19 +1,20 @@
-import { Lock, LogIn, Phone } from 'lucide-react-native';
+import { Lock, LogIn, Phone, ShoppingBag } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { BASE_URL, setAuthToken } from '../services/apiConfig';
 
 interface LoginProps {
-  onLoginSuccess: (userName: string) => void;
+  onLoginSuccess: (user: any) => void;
   onSwitchToRegister: () => void;
 }
 
@@ -110,40 +111,40 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }: Logi
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.container}
     >
-      <View style={styles.cardContainer}>
-        <View style={styles.heroPanel}>
-          <View style={styles.heroHeaderRow}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Compact, Clean Header */}
+        <View style={styles.compactHeader}>
+          <View style={styles.brandRow}>
             <View style={styles.brandBadge}>
-              <Text style={styles.brandBadgeText}>L</Text>
+              <ShoppingBag size={22} color="#FFF" />
             </View>
-            <View style={styles.heroTag}>
-              <Text style={styles.heroTagText}>Fresh & Fast</Text>
+            <View style={{ flex: 1 }}>
+              <View style={styles.titleRow}>
+                <Text style={styles.brandTitle}>LocalShop</Text>
+                <View style={styles.roleTag}>
+                  <Text style={styles.roleTagText}>🛒 Customer</Text>
+                </View>
+              </View>
+              <Text style={styles.headerSubtitle}>
+                Sign in to browse neighborhood stores & order essentials
+              </Text>
             </View>
-          </View>
-
-          <Text style={styles.heroTitle}>LocalShop</Text>
-          <Text style={styles.heroSubtitle}>Groceries, essentials, and trusted local stores delivered near you.</Text>
-
-          <View style={styles.visualPanel}>
-            <View style={styles.visualGlow} />
-            <Text style={styles.visualBadge}>Fresh picks</Text>
-            <Text style={styles.visualTitle}>Groceries at your doorstep</Text>
           </View>
         </View>
 
-        <View style={styles.headerSection}>
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Log in to access your local shops and order history.</Text>
-        </View>
-
+        {/* Login Form Card */}
         <View style={styles.formCard}>
-          <Text style={styles.inputLabel}>Registered Mobile Number</Text>
+          <Text style={styles.inputLabel}>Mobile Number</Text>
           <View style={styles.inputWrapper}>
             <Phone size={18} color="#8E8E93" style={styles.inputIcon} />
-            <TextInput 
+            <TextInput
               style={styles.input}
               placeholder="Enter 10-digit number"
               keyboardType="phone-pad"
@@ -156,7 +157,7 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }: Logi
           <Text style={styles.inputLabel}>Password</Text>
           <View style={styles.inputWrapper}>
             <Lock size={18} color="#8E8E93" style={styles.inputIcon} />
-            <TextInput 
+            <TextInput
               style={styles.input}
               placeholder="Enter your security password"
               secureTextEntry={true}
@@ -169,8 +170,32 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }: Logi
             <Text style={styles.errorText}>{loginError}</Text>
           ) : null}
 
-          <TouchableOpacity onPress={() => setShowForgotPassword(!showForgotPassword)}>
-            <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+          {/* Quick Demo Fill */}
+          <TouchableOpacity
+            style={styles.quickFillBtn}
+            onPress={() => {
+              setPhone('9876543210');
+              setPassword('Customer@2026!');
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.quickFillText}>⚡ Quick Fill: Turja Mukherjee (Customer Demo)</Text>
+          </TouchableOpacity>
+
+          {/* SUBMIT LOG IN BUTTON - PROMINENT & HIGH ON SCREEN */}
+          <TouchableOpacity style={styles.submitButton} onPress={handleLogin} activeOpacity={0.8}>
+            <LogIn size={20} color="#FFF" style={{ marginRight: 8 }} />
+            <Text style={styles.submitButtonText}>Log In</Text>
+          </TouchableOpacity>
+
+          {/* Forgot Password Link */}
+          <TouchableOpacity
+            style={styles.forgotBtn}
+            onPress={() => setShowForgotPassword(!showForgotPassword)}
+          >
+            <Text style={styles.forgotPasswordText}>
+              {showForgotPassword ? 'Close password reset' : 'Forgot password?'}
+            </Text>
           </TouchableOpacity>
 
           {showForgotPassword && (
@@ -179,7 +204,7 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }: Logi
 
               <TextInput
                 style={styles.resetInput}
-                placeholder="New password"
+                placeholder="New password (min 8 chars)"
                 secureTextEntry
                 value={newPassword}
                 onChangeText={setNewPassword}
@@ -198,29 +223,15 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }: Logi
               </TouchableOpacity>
             </View>
           )}
-
-          <TouchableOpacity 
-            style={{ backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, alignItems: 'center', marginBottom: 12 }}
-            onPress={() => {
-              setPhone('9876543210');
-              setPassword('Customer@2026!');
-            }}
-          >
-            <Text style={{ color: '#1D4ED8', fontSize: 13, fontWeight: '600' }}>⚡ Quick Fill Demo: Turja Mukherjee (Customer)</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.submitButton} onPress={handleLogin}>
-            <LogIn size={20} color="#FFF" style={{ marginRight: 6 }} />
-            <Text style={styles.submitButtonText}>Log In</Text>
-          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.switchButton} onPress={onSwitchToRegister}>
+        {/* Create Account Link */}
+        <TouchableOpacity style={styles.switchButton} onPress={onSwitchToRegister} activeOpacity={0.7}>
           <Text style={styles.switchText}>
             New to LocalShop? <Text style={styles.switchLink}>Create an account</Text>
           </Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -228,158 +239,98 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }: Logi
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 20,
     backgroundColor: '#F3F7FF',
   },
-  cardContainer: {
+  scrollContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 40,
+    maxWidth: 520,
     width: '100%',
+    alignSelf: 'center',
   },
-  heroPanel: {
+  compactHeader: {
     backgroundColor: '#EAF4FF',
-    borderRadius: 24,
-    padding: 18,
-    marginBottom: 18,
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: '#D9EAFE',
-    shadowColor: '#1D4ED8',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 4,
   },
-  heroHeaderRow: {
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  brandBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#007AFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 2,
   },
-  heroTag: {
-    backgroundColor: '#DFF7EA',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
+  brandTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0F172A',
   },
-  heroTagText: {
-    color: '#127A46',
+  roleTag: {
+    backgroundColor: '#DBEAFE',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  roleTagText: {
+    color: '#1D4ED8',
     fontSize: 11,
     fontWeight: '700',
   },
-  brandBadge: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: '#1E90FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#007AFF',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.26,
-    shadowRadius: 14,
-    elevation: 5,
-  },
-  brandBadgeText: {
-    color: '#FFF',
-    fontSize: 24,
-    fontWeight: '800',
-  },
-  heroTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#0F172A',
-    letterSpacing: -0.5,
-  },
-  heroSubtitle: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: '#475569',
-    marginTop: 6,
-  },
-  visualPanel: {
-    height: 110,
-    borderRadius: 18,
-    marginTop: 14,
-    backgroundColor: '#DDEEFF',
-    overflow: 'hidden',
-    justifyContent: 'flex-end',
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#CFE3FF',
-  },
-  visualGlow: {
-    position: 'absolute',
-    right: -20,
-    top: -12,
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255,255,255,0.45)',
-  },
-  visualBadge: {
-    position: 'absolute',
-    left: 14,
-    top: 12,
-    backgroundColor: 'rgba(255,255,255,0.6)',
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    color: '#1D4ED8',
-    fontSize: 10,
-    fontWeight: '700',
-    overflow: 'hidden',
-  },
-  visualTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A',
-    maxWidth: '70%',
-  },
-  headerSection: {
-    marginBottom: 18,
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: '#1C1C1E',
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 15,
+  headerSubtitle: {
+    fontSize: 12,
     color: '#64748B',
-    marginTop: 8,
-    lineHeight: 22,
-    textAlign: 'center',
+    lineHeight: 16,
   },
   formCard: {
     backgroundColor: '#FFF',
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 18,
+    padding: 18,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
     borderWidth: 1,
-    borderColor: 'rgba(15, 23, 42, 0.04)',
+    borderColor: 'rgba(15, 23, 42, 0.05)',
   },
   inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#3A3A3C',
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
     marginBottom: 6,
-    marginTop: 12,
+    marginTop: 8,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F2F4F8',
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
     paddingHorizontal: 12,
-    height: 52,
-    marginBottom: 6,
+    height: 48,
+    marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#E8ECF3',
+    borderColor: '#E2E8F0',
   },
   inputIcon: {
     marginRight: 10,
@@ -387,20 +338,35 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 15,
-    color: '#1C1C1E',
+    color: '#0F172A',
+  },
+  quickFillBtn: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 6,
+    marginBottom: 12,
+  },
+  quickFillText: {
+    color: '#1D4ED8',
+    fontSize: 12,
+    fontWeight: '700',
   },
   submitButton: {
     flexDirection: 'row',
     backgroundColor: '#007AFF',
     borderRadius: 12,
-    height: 52,
+    height: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 24,
     shadowColor: '#007AFF',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
     elevation: 3,
   },
   submitButtonText: {
@@ -408,66 +374,71 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
+  forgotBtn: {
+    alignSelf: 'center',
+    paddingVertical: 8,
+    marginTop: 6,
+  },
   forgotPasswordText: {
     color: '#007AFF',
     fontSize: 13,
     fontWeight: '600',
-    marginTop: 10,
     textAlign: 'center',
   },
   errorText: {
-    color: '#D93025',
+    color: '#DC2626',
     fontSize: 13,
     fontWeight: '600',
-    marginTop: 8,
-    marginBottom: 4,
+    marginTop: 4,
+    marginBottom: 6,
   },
   resetCard: {
-    backgroundColor: '#F7F7F8',
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
-    padding: 12,
-    marginTop: 12,
-    marginBottom: 8,
+    padding: 14,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   resetTitle: {
-    color: '#1C1C1E',
-    fontSize: 14,
+    color: '#0F172A',
+    fontSize: 13,
     fontWeight: '700',
     marginBottom: 8,
   },
   resetInput: {
     backgroundColor: '#FFF',
-    borderColor: '#E5E5EA',
+    borderColor: '#CBD5E1',
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 10,
-    paddingVertical: 10,
+    paddingVertical: 8,
     marginBottom: 8,
-    fontSize: 14,
+    fontSize: 13,
   },
   resetButton: {
-    backgroundColor: '#34C759',
+    backgroundColor: '#10B981',
     borderRadius: 8,
-    height: 40,
+    height: 38,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 4,
   },
   resetButtonText: {
     color: '#FFF',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
   },
   switchButton: {
-    marginTop: 20,
+    marginTop: 18,
     alignItems: 'center',
   },
   switchText: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: '#64748B',
   },
   switchLink: {
     color: '#007AFF',
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });

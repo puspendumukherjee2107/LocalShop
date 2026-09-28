@@ -19,7 +19,7 @@ interface RegisterScreenProps {
 }
 
 export default function RegisterScreen({ onRegisterSuccess, onSwitchToLogin }: RegisterScreenProps) {
-  const [name, setName] = useState('');
+  const [name, setName] = useState('Prayaan Das');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -94,7 +94,7 @@ export default function RegisterScreen({ onRegisterSuccess, onSwitchToLogin }: R
             <User size={20} color="#8E8E93" style={styles.inputIcon} />
             <TextInput 
               style={styles.input}
-              placeholder="e.g., Turja Mukherjee"
+              placeholder="e.g., Prayaan Das"
               value={name}
               onChangeText={setName}
             />
