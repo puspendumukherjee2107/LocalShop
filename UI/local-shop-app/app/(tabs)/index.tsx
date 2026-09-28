@@ -70,16 +70,6 @@ export default function HomeScreen() {
                      (mainRole === 'merchant' && merchantShop !== null) ||
                      (mainRole === 'admin' && adminAuth);
 
-  const handleSwitchRole = () => {
-    setAuthToken(undefined);
-    setMainRole(null);
-    setCustomerAuth(false);
-    setCurrentUser(null);
-    setMerchantShop(null);
-    setAdminAuth(false);
-    setCustScreenState('login');
-  };
-
   const handleLogout = () => {
     setAuthToken(undefined);
     setCustomerAuth(false);
@@ -87,6 +77,7 @@ export default function HomeScreen() {
     setMerchantShop(null);
     setAdminAuth(false);
     setCustScreenState('login');
+    setMainRole(null);
   };
 
   return (
@@ -144,21 +135,21 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.headerActionRow}>
-            <TouchableOpacity
-              style={styles.switchRoleBtn}
-              onPress={handleSwitchRole}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.switchRoleText}>🔄 Switch Role</Text>
-            </TouchableOpacity>
-
-            {isLoggedIn && (
+            {isLoggedIn ? (
               <TouchableOpacity
                 style={styles.logoutBtn}
                 onPress={handleLogout}
                 activeOpacity={0.7}
               >
                 <Text style={styles.logoutText}>🚪 Log Out</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.backBtn}
+                onPress={() => setMainRole(null)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.backText}>← Back</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -464,7 +455,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  switchRoleBtn: {
+  backBtn: {
     backgroundColor: '#FFF',
     paddingHorizontal: 12,
     paddingVertical: 7,
@@ -477,9 +468,9 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 1,
   },
-  switchRoleText: {
+  backText: {
     fontSize: 12,
-    color: '#007AFF',
+    color: '#475569',
     fontWeight: '700',
   },
   logoutBtn: {

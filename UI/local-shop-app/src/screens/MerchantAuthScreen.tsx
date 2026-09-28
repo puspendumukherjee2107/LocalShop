@@ -23,6 +23,11 @@ export default function MerchantAuthScreen({ onAuthSuccess }: MerchantAuthProps)
       return;
     }
 
+    if (password.length < 8) {
+      Alert.alert('Weak Password', 'Password must be at least 8 characters long.');
+      return;
+    }
+
     if (isLogin) {
       try {
         const response = await fetch(`${BASE_URL}/auth/login`, {
@@ -45,10 +50,61 @@ export default function MerchantAuthScreen({ onAuthSuccess }: MerchantAuthProps)
         Alert.alert('Network Error', 'Check your server connection.');
         return;
       }
-    }
+    } else {
+      try {
+        const regResponse = await fetch(`${BASE_URL}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: shopName.trim(),
+            phone: phone.trim(),
+            passwordHash: password.trim(),
+            role: 'Merchant',
+            address: category.trim(),
+          }),
+        });
 
-    Alert.alert('Store Registered', `${shopName} has been created successfully!`);
-    onAuthSuccess(shopName.trim());
+        const regData = await regResponse.json();
+        if (!regResponse.ok) {
+          Alert.alert('Store Creation Failed', regData.message || 'Error registering store.');
+          return;
+        }
+
+        // Initialize StoreProfile in database
+        await fetch(`${BASE_URL}/stores/profile`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shopName: shopName.trim(),
+            category: category.trim(),
+            isOpen: true,
+            operatingHours: '08:00 AM - 09:30 PM',
+            deliveryRadiusKm: 3.0,
+            minOrderAmount: 150,
+            kycStatus: 'Approved',
+          }),
+        });
+
+        // Automatically log in
+        const loginRes = await fetch(`${BASE_URL}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: phone.trim(), password: password.trim(), role: 'Merchant' }),
+        });
+
+        const loginData = await loginRes.json();
+        if (loginRes.ok && loginData.token) {
+          setAuthToken(loginData.token);
+        }
+
+        Alert.alert('Store Registered 🎉', `${shopName.trim()} has been registered and is now live!`);
+        onAuthSuccess(shopName.trim());
+        return;
+      } catch {
+        Alert.alert('Network Error', 'Check your server connection.');
+        return;
+      }
+    }
   };
 
   const handleForgotPassword = async () => {
