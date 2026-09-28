@@ -199,6 +199,16 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }: Logi
             </View>
           )}
 
+          <TouchableOpacity 
+            style={{ backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, alignItems: 'center', marginBottom: 12 }}
+            onPress={() => {
+              setPhone('9876543210');
+              setPassword('Customer@2026!');
+            }}
+          >
+            <Text style={{ color: '#1D4ED8', fontSize: 13, fontWeight: '600' }}>⚡ Quick Fill Demo: Rahul Sharma (Customer)</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.submitButton} onPress={handleLogin}>
             <LogIn size={20} color="#FFF" style={{ marginRight: 6 }} />
             <Text style={styles.submitButtonText}>Log In</Text>

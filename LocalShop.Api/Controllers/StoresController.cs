@@ -1,21 +1,25 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using LocalShop.Api.Data;
+using LocalShop.Api.Hubs;
 using LocalShop.Api.Models;
 
 namespace LocalShop.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[AllowAnonymous]
 public class StoresController : ControllerBase
 {
     private readonly StoreDbContext _context;
+    private readonly IHubContext<OrderHub> _hubContext;
 
-    public StoresController(StoreDbContext context)
+    public StoresController(StoreDbContext context, IHubContext<OrderHub> hubContext)
     {
         _context = context;
+        _hubContext = hubContext;
     }
 
     // GET: api/stores
@@ -113,6 +117,9 @@ public class StoresController : ControllerBase
         profile.IsOpen = !profile.IsOpen;
         profile.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
+
+        // Broadcast to Real-Time SignalR Hub
+        await _hubContext.Clients.All.SendAsync("StoreStatusUpdated", new { shopName = profile.ShopName, isOpen = profile.IsOpen });
 
         return Ok(new { isOpen = profile.IsOpen, message = profile.IsOpen ? "Store is now OPEN" : "Store is now CLOSED" });
     }

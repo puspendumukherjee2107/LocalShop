@@ -8,7 +8,7 @@ namespace LocalShop.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[AllowAnonymous]
 public class ProductsController : ControllerBase
 {
     private readonly StoreDbContext _context;

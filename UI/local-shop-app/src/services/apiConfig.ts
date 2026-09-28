@@ -1,18 +1,35 @@
 import { Platform } from 'react-native';
 
-const CLOUDFLARE_API = 'https://events-probably-anthropology-bottle.trycloudflare.com/api';
-const CLOUDFLARE_HUB = 'https://events-probably-anthropology-bottle.trycloudflare.com/hubs/orders';
+export const FIXED_CLOUD_API = 'https://localshop-puspendu-2026.loca.lt/api';
+export const FIXED_CLOUD_HUB = 'https://localshop-puspendu-2026.loca.lt/hubs/orders';
+export const LOCAL_LAN_API = 'http://192.168.29.19:5000/api';
+export const LOCAL_LAN_HUB = 'http://192.168.29.19:5000/hubs/orders';
 
 const ENV_API_URL = process.env.EXPO_PUBLIC_API_URL;
 const ENV_HUB_URL = process.env.EXPO_PUBLIC_HUB_URL;
 
-export const BASE_URL = ENV_API_URL || (Platform.OS === 'web'
+let activeBaseUrl = Platform.OS === 'web'
   ? 'http://localhost:5000/api'
-  : CLOUDFLARE_API);
+  : (ENV_API_URL || FIXED_CLOUD_API);
 
-export const HUB_URL = ENV_HUB_URL || (Platform.OS === 'web'
+let activeHubUrl = Platform.OS === 'web'
   ? 'http://localhost:5000/hubs/orders'
-  : CLOUDFLARE_HUB);
+  : (ENV_HUB_URL || FIXED_CLOUD_HUB);
+
+export let BASE_URL = activeBaseUrl;
+export let HUB_URL = activeHubUrl;
+
+export const setServerEndpoint = (url: string) => {
+  let clean = url.trim().replace(/\/+$/, '');
+  if (!clean.endsWith('/api')) {
+    BASE_URL = `${clean}/api`;
+    HUB_URL = `${clean}/hubs/orders`;
+  } else {
+    BASE_URL = clean;
+    HUB_URL = clean.replace(/\/api$/, '/hubs/orders');
+  }
+  return BASE_URL;
+};
 
 export const setAuthToken = (token?: string) => {
   const value = token?.trim();
@@ -49,6 +66,7 @@ globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
   if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`);
   }
+  headers.set('bypass-tunnel-reminder', 'true');
 
   return nativeFetch(input, { ...init, headers });
 };

@@ -1,266 +1,630 @@
-import CustomerPaymentScreen from '@/src/screens/CustomerPaymentScreen';
-import MerchantSettlementScreen from '@/src/screens/MerchantSettlementScreen';
-import OrderTrackingScreen from '@/src/screens/OrderTrackingScreen';
-import React, { useState } from 'react';
-import { Image, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import DeliveryPartnerScreen from '../../src/screens/DeliveryPartnerScreen';
-import DeliveryLoginScreen from '../../src/screens/DeliveryLoginScreen';
-import AdminDashboardScreen from '../../src/screens/AdminDashboardScreen';
-import AdminLoginScreen from '../../src/screens/AdminLoginScreen';
-import RegisterScreen from '../../src/screens/Auth/RegisterScreen';
-import CustomerScreen from '../../src/screens/CustomerScreen';
-import CustomerSettingsScreen from '../../src/screens/CustomerSettingsScreen';
-import InventoryScreen from '../../src/screens/InventoryScreen';
+import React, { useState, useEffect } from 'react';
+// Hyperlocal commerce portal
+import {
+  Alert,
+  Modal,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import SimpleCustomerScreen from '../../src/screens/SimpleCustomerScreen';
+import SimpleMerchantScreen from '../../src/screens/SimpleMerchantScreen';
 import LoginScreen from '../../src/screens/LoginScreen';
+import RegisterScreen from '../../src/screens/Auth/RegisterScreen';
 import MerchantAuthScreen from '../../src/screens/MerchantAuthScreen';
-import MerchantSettingsScreen from '../../src/screens/MerchantSettingsScreen';
-import StaffManagementScreen from '../../src/screens/StaffManagementScreen';
-type MainRole = 'customer' | 'merchant' | 'delivery' | 'admin';
-type CustomerTab = 'browse' | 'tracking' | 'payments' | 'settings';
-type MerchantTab = 'inventory' | 'staff' | 'settlements' | 'settings';
+import AdminLoginScreen from '../../src/screens/AdminLoginScreen';
+import AdminDashboardScreen from '../../src/screens/AdminDashboardScreen';
+import { BASE_URL, FIXED_CLOUD_API, LOCAL_LAN_API, setServerEndpoint } from '../../src/services/apiConfig';
+
+type MainRole = 'customer' | 'merchant' | 'admin';
 
 export default function HomeScreen() {
   const [mainRole, setMainRole] = useState<MainRole | null>(null);
-  
-  // Authentication Trackers
+
+  // Server Endpoint & Connectivity State
+  const [currentApiUrl, setCurrentApiUrl] = useState<string>(BASE_URL);
+  const [serverHealth, setServerHealth] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [customInputUrl, setCustomInputUrl] = useState(BASE_URL);
+
+  const testHealth = async (urlToCheck: string = currentApiUrl) => {
+    setServerHealth('checking');
+    try {
+      const clean = urlToCheck.trim().replace(/\/+$/, '');
+      const testUrl = clean.endsWith('/api') ? `${clean}/stores` : `${clean}/api/stores`;
+      const res = await fetch(testUrl);
+      if (res.ok) {
+        setServerHealth('online');
+      } else {
+        setServerHealth('offline');
+      }
+    } catch {
+      setServerHealth('offline');
+    }
+  };
+
+  useEffect(() => {
+    testHealth(currentApiUrl);
+  }, [currentApiUrl]);
+
+  // Auth States
   const [customerAuth, setCustomerAuth] = useState(false);
-  const [merchantShop, setMerchantShop] = useState<string | null>(null);
-  const [adminAuth, setAdminAuth] = useState(false);
-  const [deliveryAuth, setDeliveryAuth] = useState(false);
-  
-  // Workspace Internal Tab Toggles
-  const [merchantSubTab, setMerchantSubTab] = useState<MerchantTab>('inventory');
-  const [customerSubTab, setCustomerSubTab] = useState<CustomerTab>('browse');
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [custScreenState, setCustScreenState] = useState<'login' | 'register'>('login');
 
-  const chooseRole = (role: MainRole) => {
+  const [merchantShop, setMerchantShop] = useState<string | null>(null);
+  const [adminAuth, setAdminAuth] = useState(false);
+
+  const handleSelectRole = (role: MainRole) => {
     setMainRole(role);
-    if (role !== 'customer') {
-      setCustScreenState('login');
-    }
+    setCustScreenState('login');
   };
 
-  const goBackToRoleSelection = () => {
+  const handleLogoutOrSwitchRole = () => {
     setMainRole(null);
     setCustomerAuth(false);
+    setCurrentUser(null);
     setMerchantShop(null);
     setAdminAuth(false);
-    setDeliveryAuth(false);
-  };
-
-  // System User Identity Session
-  const [currentUser, setCurrentUser] = useState<{ id?: string; name: string; phone: string; address?: string }>({
-    name: 'Turja Sharma',
-    phone: '9876543210',
-    address: 'Flat 4B, Greenfield Apartments'
-  });
-
-  const handleCustomerAuth = (user?: any) => {
-    if (user && typeof user === 'object') {
-      setCurrentUser(prev => ({
-        ...prev,
-        ...user,
-        name: user.name || prev.name,
-        phone: user.phone || prev.phone,
-        address: user.address || prev.address
-      }));
-    } else if (typeof user === 'string' && user.trim()) {
-      setCurrentUser(prev => ({ ...prev, name: user.trim() }));
-    }
-    setCustomerAuth(true);
+    setCustScreenState('login');
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
-      
+      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+
+      {/* Top Header */}
       <View style={styles.header}>
-        <View style={styles.brandRow}>
-          <View style={styles.brandBadge}>
-            <Text style={styles.brandBadgeText}>L</Text>
+        <View style={styles.headerRow}>
+          <View style={styles.brandRow}>
+            <View style={styles.brandBadge}>
+              <Text style={styles.brandBadgeText}>L</Text>
+            </View>
+            <View>
+              <Text style={styles.headerTitle}>LocalShop</Text>
+              <Text style={styles.headerSubtitle}>
+                {mainRole === 'customer'
+                  ? (customerAuth ? `Customer: ${currentUser?.name || 'Rahul'}` : 'Customer Login')
+                  : mainRole === 'merchant'
+                  ? (merchantShop ? `Merchant: ${merchantShop}` : 'Merchant Portal')
+                  : mainRole === 'admin'
+                  ? (adminAuth ? 'Admin Console' : 'Admin Login')
+                  : 'Hyperlocal Store Platform'}
+              </Text>
+            </View>
           </View>
-          <Text style={styles.headerTitle}>LocalShop</Text>
+
+          {mainRole !== null && (
+            <TouchableOpacity style={styles.switchRoleBtn} onPress={handleLogoutOrSwitchRole}>
+              <Text style={styles.switchRoleText}>← Switch Role</Text>
+            </TouchableOpacity>
+          )}
         </View>
-        {mainRole && (
-          <TouchableOpacity style={styles.backButton} onPress={goBackToRoleSelection}>
-            <Text style={styles.backButtonText}>← Choose another role</Text>
-          </TouchableOpacity>
-        )}
       </View>
 
-      {/* Main Sandbox Layout Area Router */}
+      {/* Main Body */}
       <View style={styles.content}>
-        {!mainRole && (
-          <ScrollView contentContainerStyle={styles.roleSelectorContainer} showsVerticalScrollIndicator={false}>
+        {/* 1. INITIAL LANDING: ROLE SELECTION */}
+        {mainRole === null && (
+          <ScrollView contentContainerStyle={styles.roleSelectorContainer}>
             <View style={styles.heroPanel}>
-              <Image
-                source={{ uri: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=900&q=80' }}
-                style={styles.heroImage}
-                resizeMode="cover"
-              />
-              <View style={styles.heroOverlay} />
-              <View style={styles.heroGradient} />
-              <View style={styles.heroGlow} />
-              <View style={styles.heroContent}>
-                <Text style={styles.heroBadge}>Fresh local shopping</Text>
-                <Text style={styles.heroTitle}>Your neighborhood store, made simpler.</Text>
-                <Text style={styles.heroText}>Choose how you want to shop or run your store.</Text>
-              </View>
+              <Text style={styles.heroBadge}>HYPERLOCAL COMMERCE</Text>
+              <Text style={styles.heroTitle}>Welcome to LocalShop</Text>
+              <Text style={styles.heroText}>
+                Direct neighborhood store delivery without delivery middlemen.
+              </Text>
             </View>
 
-            <Text style={styles.roleIntro}>Who are you?</Text>
-            <Text style={styles.roleSubtitle}>Select your role to continue to the password screen.</Text>
+            <Text style={styles.roleIntro}>Select who you are:</Text>
+            <Text style={styles.roleSubtitle}>Choose your account type to continue</Text>
 
             <View style={styles.roleGrid}>
-              <TouchableOpacity style={[styles.roleCard, styles.customerCard]} onPress={() => chooseRole('customer')}>
+              {/* Customer Option */}
+              <TouchableOpacity
+                style={[styles.roleCard, styles.customerCard]}
+                onPress={() => handleSelectRole('customer')}
+              >
                 <View style={styles.roleIconWrap}>
-                  <Text style={styles.roleEmoji}>🛍️</Text>
+                  <Text style={styles.roleEmoji}>🛒</Text>
                 </View>
                 <Text style={styles.roleLabel}>Customer</Text>
-                <Text style={styles.roleHint}>Shop & track orders</Text>
+                <Text style={styles.roleHint}>
+                  Browse local stores, order groceries, approve quotes & track orders.
+                </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={[styles.roleCard, styles.merchantCard]} onPress={() => chooseRole('merchant')}>
+              {/* Merchant Option */}
+              <TouchableOpacity
+                style={[styles.roleCard, styles.merchantCard]}
+                onPress={() => handleSelectRole('merchant')}
+              >
                 <View style={styles.roleIconWrap}>
                   <Text style={styles.roleEmoji}>🏪</Text>
                 </View>
-                <Text style={styles.roleLabel}>Merchant</Text>
-                <Text style={styles.roleHint}>Manage stock & sales</Text>
+                <Text style={styles.roleLabel}>Store Owner</Text>
+                <Text style={styles.roleHint}>
+                  Receive customer lists, calculate shelf prices, pack & deliver.
+                </Text>
               </TouchableOpacity>
 
-              {false && (
-                <TouchableOpacity style={[styles.roleCard, styles.deliveryCard]} onPress={() => chooseRole('delivery')}>
-                  <View style={styles.roleIconWrap}>
-                    <Text style={styles.roleEmoji}>🛵</Text>
-                  </View>
-                  <Text style={styles.roleLabel}>Delivery</Text>
-                  <Text style={styles.roleHint}>Handle drops</Text>
-                </TouchableOpacity>
-              )}
-
-              <TouchableOpacity style={[styles.roleCard, styles.adminCard]} onPress={() => chooseRole('admin')}>
+              {/* Admin Option */}
+              <TouchableOpacity
+                style={[styles.roleCard, styles.adminCard]}
+                onPress={() => handleSelectRole('admin')}
+              >
                 <View style={styles.roleIconWrap}>
                   <Text style={styles.roleEmoji}>🛡️</Text>
                 </View>
-                <Text style={styles.roleLabel}>Admin</Text>
-                <Text style={styles.roleHint}>System control</Text>
+                <Text style={styles.roleLabel}>Administrator</Text>
+                <Text style={styles.roleHint}>
+                  Store approvals, platform metrics & system oversight.
+                </Text>
               </TouchableOpacity>
+            </View>
+
+            {/* Server Connection Banner */}
+            <View style={styles.serverBox}>
+              <View style={styles.serverRow}>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <Text style={styles.serverLabel}>📡 API Server Connection</Text>
+                  <Text style={styles.serverUrlText} numberOfLines={1}>{currentApiUrl}</Text>
+                </View>
+                <TouchableOpacity
+                  style={[
+                    styles.statusBadge,
+                    serverHealth === 'online' ? styles.statusBadgeOnline : styles.statusBadgeOffline
+                  ]}
+                  onPress={() => testHealth(currentApiUrl)}
+                >
+                  <Text style={styles.statusBadgeText}>
+                    {serverHealth === 'checking' ? '⏳ Testing' : serverHealth === 'online' ? '🟢 Online' : '🔴 Offline'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.serverBtnRow}>
+                <TouchableOpacity
+                  style={styles.serverMiniBtn}
+                  onPress={() => {
+                    const newUrl = setServerEndpoint(FIXED_CLOUD_API);
+                    setCurrentApiUrl(newUrl);
+                    testHealth(newUrl);
+                  }}
+                >
+                  <Text style={styles.serverMiniBtnText}>☁️ Cloud Tunnel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.serverMiniBtn}
+                  onPress={() => {
+                    const newUrl = setServerEndpoint(LOCAL_LAN_API);
+                    setCurrentApiUrl(newUrl);
+                    testHealth(newUrl);
+                  }}
+                >
+                  <Text style={styles.serverMiniBtnText}>📶 Local Wi-Fi</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.serverMiniBtn}
+                  onPress={() => {
+                    setCustomInputUrl(currentApiUrl);
+                    setShowConfigModal(true);
+                  }}
+                >
+                  <Text style={styles.serverMiniBtnText}>⚙️ Custom URL</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </ScrollView>
         )}
-        
-        {/* Customer View Management Wrapper */}
+
+        {/* 2. CUSTOMER WORKFLOW */}
         {mainRole === 'customer' && (
           !customerAuth ? (
             custScreenState === 'login' ? (
-              <LoginScreen onLoginSuccess={handleCustomerAuth} onSwitchToRegister={() => setCustScreenState('register')} />
+              <LoginScreen
+                onLoginSuccess={(user) => {
+                  setCurrentUser(user);
+                  setCustomerAuth(true);
+                }}
+                onSwitchToRegister={() => setCustScreenState('register')}
+              />
             ) : (
-              <RegisterScreen onRegisterSuccess={handleCustomerAuth} onSwitchToLogin={() => setCustScreenState('login')} />
+              <RegisterScreen
+                onRegisterSuccess={() => {
+                  setCustScreenState('login');
+                }}
+                onSwitchToLogin={() => setCustScreenState('login')}
+              />
             )
           ) : (
-            <View style={{ flex: 1 }}>
-              <View style={styles.subTabBar}>
-                  <TouchableOpacity style={[styles.subTabItem, customerSubTab === 'browse' && styles.subTabActive]} onPress={() => setCustomerSubTab('browse')}><Text style={[styles.subTabText, customerSubTab === 'browse' && styles.subTabActiveText]}>🛍️ Shop</Text></TouchableOpacity>
-                  <TouchableOpacity style={[styles.subTabItem, customerSubTab === 'tracking' && styles.subTabActive]} onPress={() => setCustomerSubTab('tracking')}><Text style={[styles.subTabText, customerSubTab === 'tracking' && styles.subTabActiveText]}>📦 Track</Text></TouchableOpacity>
-                  {false && (
-                    <TouchableOpacity style={[styles.subTabItem, customerSubTab === 'payments' && styles.subTabActive]} onPress={() => setCustomerSubTab('payments')}><Text style={[styles.subTabText, customerSubTab === 'payments' && styles.subTabActiveText]}>💳 Pay</Text></TouchableOpacity>
-                  )}
-                  <TouchableOpacity style={[styles.subTabItem, customerSubTab === 'settings' && styles.subTabActive]} onPress={() => setCustomerSubTab('settings')}><Text style={[styles.subTabText, customerSubTab === 'settings' && styles.subTabActiveText]}>⚙️ Account</Text></TouchableOpacity>
-              </View>
-              {customerSubTab === 'browse' && <CustomerScreen currentUser={currentUser} />}
-              {customerSubTab === 'tracking' && <OrderTrackingScreen />}
-              {false && customerSubTab === 'payments' && <CustomerPaymentScreen customerPhone={currentUser.phone} />}
-              {customerSubTab === 'settings' && <CustomerSettingsScreen currentUser={currentUser} onProfileUpdated={setCurrentUser} />}
-            </View>
+            <SimpleCustomerScreen />
           )
         )}
 
-        {/* Merchant Control Views */}
+        {/* 3. MERCHANT WORKFLOW */}
         {mainRole === 'merchant' && (
           !merchantShop ? (
-            <MerchantAuthScreen onAuthSuccess={(name) => setMerchantShop(name)} />
+            <MerchantAuthScreen
+              onAuthSuccess={(shopName) => {
+                setMerchantShop(shopName);
+              }}
+            />
           ) : (
-             <View style={{ flex: 1 }}>
-              <View style={styles.subTabBar}>
-                <TouchableOpacity style={[styles.subTabItem, merchantSubTab === 'inventory' && styles.subTabActive]} onPress={() => setMerchantSubTab('inventory')}><Text style={[styles.subTabText, merchantSubTab === 'inventory' && styles.subTabActiveText]}>📦 Stock</Text></TouchableOpacity>
-                <TouchableOpacity style={[styles.subTabItem, merchantSubTab === 'staff' && styles.subTabActive]} onPress={() => setMerchantSubTab('staff')}><Text style={[styles.subTabText, merchantSubTab === 'staff' && styles.subTabActiveText]}>👥 Staff</Text></TouchableOpacity>
-                <TouchableOpacity style={[styles.subTabItem, merchantSubTab === 'settlements' && styles.subTabActive]} onPress={() => setMerchantSubTab('settlements')}><Text style={[styles.subTabText, merchantSubTab === 'settlements' && styles.subTabActiveText]}>🏦 Bank</Text></TouchableOpacity>
-                <TouchableOpacity style={[styles.subTabItem, merchantSubTab === 'settings' && styles.subTabActive]} onPress={() => setMerchantSubTab('settings')}><Text style={[styles.subTabText, merchantSubTab === 'settings' && styles.subTabActiveText]}>⚙️ Profile</Text></TouchableOpacity>
-              </View>
-                {merchantSubTab === 'inventory' && <InventoryScreen />}
-                {merchantSubTab === 'staff' && <StaffManagementScreen />}
-                {merchantSubTab === 'settlements' && <MerchantSettlementScreen />}
-                {merchantSubTab === 'settings' && <MerchantSettingsScreen />}
-            </View>
+            <SimpleMerchantScreen shopName={merchantShop || 'Kirana Junction'} />
           )
         )}
 
-        {false && mainRole === 'delivery' && (
-          !deliveryAuth ? (
-            <DeliveryLoginScreen onAuthSuccess={(name) => {
-              setDeliveryAuth(true);
-              // keep the driver name for downstream delivery actions
-              // this data is retained in screen state by the delivery dashboard itself
-              if (name) {
-                // no-op placeholder to keep auth flow consistent
-              }
-            }} />
-          ) : (
-            <DeliveryPartnerScreen />
-          )
-        )}
-
-        {/* System Administration Control Panel */}
+        {/* 4. ADMIN WORKFLOW */}
         {mainRole === 'admin' && (
           !adminAuth ? (
-          <AdminLoginScreen onAdminAuth={() => setAdminAuth(true)} />
+            <AdminLoginScreen
+              onAdminAuth={() => {
+                setAdminAuth(true);
+              }}
+            />
           ) : (
-        <AdminDashboardScreen />
+            <AdminDashboardScreen />
           )
         )}
       </View>
+
+      {/* Custom Server Endpoint Modal */}
+      <Modal visible={showConfigModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>⚙️ Set API Server Endpoint</Text>
+            <Text style={styles.modalSubtitle}>
+              Enter your backend URL or tunnel endpoint (e.g., https://... or http://192.168.x.x:5000)
+            </Text>
+
+            <TextInput
+              style={styles.modalInput}
+              value={customInputUrl}
+              onChangeText={setCustomInputUrl}
+              placeholder="https://your-tunnel.loca.lt/api"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setShowConfigModal(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalSaveBtn}
+                onPress={() => {
+                  if (!customInputUrl.trim()) {
+                    Alert.alert('Invalid URL', 'Please enter a valid server URL.');
+                    return;
+                  }
+                  const newUrl = setServerEndpoint(customInputUrl);
+                  setCurrentApiUrl(newUrl);
+                  setShowConfigModal(false);
+                  testHealth(newUrl);
+                  Alert.alert('Endpoint Updated', `Active API is now:\n${newUrl}`);
+                }}
+              >
+                <Text style={styles.modalSaveText}>Save & Connect</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F2F2F7' },
-  header: { paddingTop: 12, paddingBottom: 12, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E5E5EA', alignItems: 'center' },
-  brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  brandBadge: { width: 28, height: 28, borderRadius: 10, backgroundColor: '#1E90FF', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
-  brandBadgeText: { color: '#FFF', fontSize: 16, fontWeight: '800' },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#1C1C1E' },
-  backButton: { marginTop: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: '#F2F2F7' },
-  backButtonText: { color: '#007AFF', fontWeight: '600', fontSize: 13 },
-  content: { flex: 1 },
-  roleSelectorContainer: { paddingHorizontal: 20, paddingVertical: 24, paddingBottom: 50 },
-  heroPanel: { height: 220, borderRadius: 24, overflow: 'hidden', position: 'relative', marginBottom: 22, backgroundColor: '#DDEBFF', shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.12, shadowRadius: 14, elevation: 4 },
-  heroImage: { width: '100%', height: '100%' },
-  heroOverlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(10, 30, 46, 0.28)' },
-  heroGradient: { ...StyleSheet.absoluteFill, backgroundColor: 'linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0))' },
-  heroGlow: { position: 'absolute', top: -20, right: -20, width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(120, 199, 255, 0.22)' },
-  heroContent: { position: 'absolute', left: 18, right: 18, bottom: 18 },
-  heroBadge: { alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.22)', borderColor: 'rgba(255,255,255,0.5)', borderWidth: 1, color: '#FFF', fontSize: 11, fontWeight: '700', letterSpacing: 0.5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, overflow: 'hidden', marginBottom: 10 },
-  heroTitle: { color: '#FFF', fontSize: 28, fontWeight: '800', letterSpacing: -0.6, marginBottom: 6 },
-  heroText: { color: 'rgba(255,255,255,0.9)', fontSize: 14, fontWeight: '500' },
-  roleIntro: { fontSize: 28, fontWeight: '800', color: '#1C1C1E', textAlign: 'center', marginTop: 4 },
-  roleSubtitle: { fontSize: 15, color: '#8E8E93', textAlign: 'center', marginTop: 8, marginBottom: 26 },
-  roleGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  roleCard: { width: '48%', backgroundColor: '#FFF', borderRadius: 20, paddingVertical: 20, paddingHorizontal: 14, alignItems: 'center', marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 2, borderWidth: 1, borderColor: 'rgba(15, 23, 42, 0.06)' },
-  customerCard: { backgroundColor: '#F3F9FF' },
-  merchantCard: { backgroundColor: '#F5F2FF' },
-  deliveryCard: { backgroundColor: '#F0FFF6' },
-  adminCard: { backgroundColor: '#FFF7E8' },
-  roleIconWrap: { width: 64, height: 64, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.8)', marginBottom: 12 },
-  roleEmoji: { fontSize: 30 },
-  roleLabel: { fontSize: 16, fontWeight: '800', color: '#1C1C1E' },
-  roleHint: { fontSize: 12, color: '#6B7280', marginTop: 4, textAlign: 'center' },
-  subTabBar: { flexDirection: 'row', backgroundColor: '#FFF', paddingVertical: 8, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#E5E5EA', gap: 8 },
-  subTabItem: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 6 },
-  subTabActive: { backgroundColor: '#E5F1FF' },
-  subTabText: { fontSize: 13, fontWeight: '600', color: '#8E8E93' },
-  subTabActiveText: { color: '#007AFF' },
-  adminDashboard: { flex: 1, backgroundColor: '#1C1C1E', padding: 20 },
-  adminMetricCard: { backgroundColor: '#2C2C2E', borderRadius: 12, padding: 16, marginTop: 20 },
-  metricText: { color: '#FFF', fontSize: 16, marginBottom: 8, fontWeight: '600' }
+  container: {
+    flex: 1,
+    backgroundColor: '#F2F2F7',
+  },
+  header: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 10,
+    backgroundColor: '#FFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5EA',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  brandBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#007AFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  brandBadgeText: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  headerSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  switchRoleBtn: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  switchRoleText: {
+    fontSize: 12,
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  content: {
+    flex: 1,
+  },
+  roleSelectorContainer: {
+    paddingHorizontal: 18,
+    paddingVertical: 20,
+    paddingBottom: 40,
+  },
+  heroPanel: {
+    backgroundColor: '#0F172A',
+    borderRadius: 18,
+    padding: 20,
+    marginBottom: 20,
+  },
+  heroBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(59, 130, 246, 0.25)',
+    color: '#60A5FA',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  heroTitle: {
+    color: '#FFF',
+    fontSize: 22,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  heroText: {
+    color: '#94A3B8',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  roleIntro: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0F172A',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  roleSubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 20,
+  },
+  roleGrid: {
+    gap: 14,
+  },
+  roleCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+    flexDirection: 'column',
+  },
+  customerCard: {
+    backgroundColor: '#F8FAFC',
+    borderLeftWidth: 4,
+    borderLeftColor: '#3B82F6',
+  },
+  merchantCard: {
+    backgroundColor: '#F8FAFC',
+    borderLeftWidth: 4,
+    borderLeftColor: '#8B5CF6',
+  },
+  adminCard: {
+    backgroundColor: '#F8FAFC',
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
+  },
+  roleIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  roleEmoji: {
+    fontSize: 24,
+  },
+  roleLabel: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  roleHint: {
+    fontSize: 12,
+    color: '#64748B',
+    lineHeight: 16,
+  },
+  serverBox: {
+    marginTop: 20,
+    backgroundColor: '#FFF',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  serverRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  serverLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  serverUrlText: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusBadgeOnline: {
+    backgroundColor: '#DCFCE7',
+  },
+  statusBadgeOffline: {
+    backgroundColor: '#FEE2E2',
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  serverBtnRow: {
+    flexDirection: 'row',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  serverMiniBtn: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  serverMiniBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 18,
+    padding: 20,
+    width: '100%',
+    maxWidth: 420,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 6,
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    lineHeight: 16,
+    marginBottom: 14,
+  },
+  modalInput: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+    color: '#0F172A',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    marginBottom: 16,
+  },
+  modalBtnRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+  },
+  modalCancelBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+  },
+  modalCancelText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  modalSaveBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#2563EB',
+  },
+  modalSaveText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFF',
+  },
 });

@@ -1,7 +1,7 @@
 import { KeyRound, ShieldAlert } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { setAuthToken } from '../services/apiConfig';
+import { BASE_URL, setAuthToken } from '../services/apiConfig';
 
 export default function AdminLoginScreen({ onAdminAuth }: { onAdminAuth: () => void }) {
   const [adminKey, setAdminKey] = useState('');
@@ -17,7 +17,7 @@ export default function AdminLoginScreen({ onAdminAuth }: { onAdminAuth: () => v
     }
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
+      const response = await fetch(`${BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: adminKey.trim(), password: password.trim(), role: 'Admin' }),
@@ -59,7 +59,7 @@ export default function AdminLoginScreen({ onAdminAuth }: { onAdminAuth: () => v
 
     (async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/auth/reset-password', {
+        const response = await fetch(`${BASE_URL}/auth/reset-password`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ phone: adminKey.trim(), newPassword: newPassword.trim(), role: 'Admin' }),
@@ -118,6 +118,16 @@ export default function AdminLoginScreen({ onAdminAuth }: { onAdminAuth: () => v
             </TouchableOpacity>
           </View>
         )}
+
+        <TouchableOpacity 
+          style={{ backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FDE68A', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, alignItems: 'center', marginBottom: 12 }}
+          onPress={() => {
+            setAdminKey('superadmin');
+            setPassword('Admin@2026!');
+          }}
+        >
+          <Text style={{ color: '#B45309', fontSize: 13, fontWeight: '600' }}>⚡ Quick Fill Demo: Super Admin</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.btn} onPress={handleAdminLogin}>
           <KeyRound size={18} color="#FFF" style={{ marginRight: 6 }} />

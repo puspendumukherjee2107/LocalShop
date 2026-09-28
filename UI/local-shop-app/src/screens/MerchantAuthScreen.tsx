@@ -166,6 +166,18 @@ export default function MerchantAuthScreen({ onAuthSuccess }: MerchantAuthProps)
             </View>
           )}
 
+          {isLogin && (
+            <TouchableOpacity 
+              style={{ backgroundColor: '#F5F3FF', borderWidth: 1, borderColor: '#DDD6FE', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, alignItems: 'center', marginBottom: 12 }}
+              onPress={() => {
+                setPhone('9876500000');
+                setPassword('Merchant@2026!');
+              }}
+            >
+              <Text style={{ color: '#6D28D9', fontSize: 13, fontWeight: '600' }}>⚡ Quick Fill Demo: Kirana Junction (Merchant)</Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity style={styles.btn} onPress={handleAuth}>
             <Text style={styles.btnText}>{isLogin ? 'Login As Merchant' : 'Create Store'}</Text>
             <ArrowRight size={18} color="#FFF" style={{ marginLeft: 6 }} />

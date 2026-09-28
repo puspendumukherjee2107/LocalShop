@@ -10,7 +10,7 @@ namespace LocalShop.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[AllowAnonymous]
 public class OrdersController : ControllerBase
 {
     private readonly StoreDbContext _context;
@@ -64,8 +64,10 @@ public class OrdersController : ControllerBase
     }
 
     // POST: api/orders/custom-list
+    // POST: api/orders/list
     // Allows customer to submit an uncataloged grocery list without requiring merchant inventory
     [HttpPost("custom-list")]
+    [HttpPost("list")]
     public async Task<ActionResult<Order>> CreateCustomListOrder([FromBody] CustomListOrderRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.ItemsText))
@@ -238,21 +240,68 @@ public class OrdersController : ControllerBase
     }
 
     // PUT: api/orders/{id}/accept-quote
-    // Customer accepts the merchant's quote and completes checkout
+    // PUT: api/orders/{id}/approve
+    // Customer accepts the merchant's quote and approves the order
     [HttpPut("{id}/accept-quote")]
-    public async Task<IActionResult> AcceptQuote(string id, [FromBody] AcceptQuoteRequest request)
+    [HttpPut("{id}/approve")]
+    public async Task<IActionResult> AcceptQuote(string id, [FromBody] AcceptQuoteRequest? request)
     {
         var order = await _context.Orders.FindAsync(id);
         if (order == null) return NotFound(new { message = "Order not found." });
 
-        order.PaymentMethod = string.IsNullOrWhiteSpace(request.PaymentMethod) ? "UPI" : request.PaymentMethod;
-        order.Status = "Processing";
+        order.PaymentMethod = string.IsNullOrWhiteSpace(request?.PaymentMethod) ? "Direct Transfer" : request.PaymentMethod;
+        order.Status = "Approved";
 
         await _context.SaveChangesAsync();
 
         // Broadcast to Real-Time SignalR Hub
         await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order });
 
+        return Ok(order);
+    }
+
+    // PUT: api/orders/{id}/packed
+    // Merchant sends confirmation once order is packed
+    [HttpPut("{id}/packed")]
+    public async Task<IActionResult> MarkPacked(string id)
+    {
+        var order = await _context.Orders.FindAsync(id);
+        if (order == null) return NotFound(new { message = "Order not found." });
+
+        order.Status = "Packed";
+        await _context.SaveChangesAsync();
+
+        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order });
+        return Ok(order);
+    }
+
+    // PUT: api/orders/{id}/delivered-and-paid
+    // Merchant marks order delivered and payment done
+    [HttpPut("{id}/delivered-and-paid")]
+    public async Task<IActionResult> MarkDeliveredAndPaid(string id)
+    {
+        var order = await _context.Orders.FindAsync(id);
+        if (order == null) return NotFound(new { message = "Order not found." });
+
+        order.Status = "DeliveredAndPaymentDone";
+        await _context.SaveChangesAsync();
+
+        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order });
+        return Ok(order);
+    }
+
+    // PUT: api/orders/{id}/customer-confirm
+    // Customer approves that delivery and payment are done
+    [HttpPut("{id}/customer-confirm")]
+    public async Task<IActionResult> CustomerConfirmCompleted(string id)
+    {
+        var order = await _context.Orders.FindAsync(id);
+        if (order == null) return NotFound(new { message = "Order not found." });
+
+        order.Status = "Completed";
+        await _context.SaveChangesAsync();
+
+        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order });
         return Ok(order);
     }
 

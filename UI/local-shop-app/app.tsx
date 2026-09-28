@@ -1,31 +1,46 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { SafeAreaView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import CustomerScreen from './src/screens/CustomerScreen';
-import InventoryScreen from './src/screens/InventoryScreen';
+import SimpleCustomerScreen from './src/screens/SimpleCustomerScreen';
+import SimpleMerchantScreen from './src/screens/SimpleMerchantScreen';
+
+// Note: Full-featured screens preserved for future multi-role activations:
+// import CustomerScreen from './src/screens/CustomerScreen';
+// import InventoryScreen from './src/screens/InventoryScreen';
+// import DeliveryPartnerScreen from './src/screens/DeliveryPartnerScreen';
+// import AdminDashboardScreen from './src/screens/AdminDashboardScreen';
+
 export default function App() {
-  // Simulating the user type: 'customer' or 'shopkeeper'
-  const [userRole, setUserRole] = useState<'customer' | 'shopkeeper'>('customer');
+  // Simple role switcher: 'customer' or 'merchant'
+  const [userRole, setUserRole] = useState<'customer' | 'merchant'>('customer');
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
       
       {/* Top Header / Role Switcher */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>LocalShop App</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.headerTitle}>LocalShop</Text>
+          <Text style={styles.headerSubtitle}>Direct Hyperlocal Store Delivery</Text>
+        </View>
+
         <View style={styles.toggleRow}>
           <TouchableOpacity 
             style={[styles.toggleButton, userRole === 'customer' && styles.activeToggle]}
             onPress={() => setUserRole('customer')}
           >
-            <Text style={[styles.toggleText, userRole === 'customer' && styles.activeText]}>Customer Mode</Text>
+            <Text style={[styles.toggleText, userRole === 'customer' && styles.activeText]}>
+              🛒 Customer Mode
+            </Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={[styles.toggleButton, userRole === 'shopkeeper' && styles.activeToggle]}
-            onPress={() => setUserRole('shopkeeper')}
+            style={[styles.toggleButton, userRole === 'merchant' && styles.activeToggle]}
+            onPress={() => setUserRole('merchant')}
           >
-            <Text style={[styles.toggleText, userRole === 'shopkeeper' && styles.activeText]}>Shopkeeper Mode</Text>
+            <Text style={[styles.toggleText, userRole === 'merchant' && styles.activeText]}>
+              🏪 Merchant Mode
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -33,9 +48,9 @@ export default function App() {
       {/* Main Content Body */}
       <View style={styles.content}>
         {userRole === 'customer' ? (
-          <CustomerScreen />
+          <SimpleCustomerScreen />
         ) : (
-          <InventoryScreen />
+          <SimpleMerchantScreen />
         )}
       </View>
     </SafeAreaView>
@@ -48,81 +63,61 @@ const styles = StyleSheet.create({
     backgroundColor: '#F2F2F7',
   },
   header: {
-    padding: 20,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 10,
     backgroundColor: '#FFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E5EA',
     alignItems: 'center',
   },
+  titleRow: {
+    alignItems: 'center',
+    marginBottom: 10,
+  },
   headerTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#1C1C1E',
-    marginBottom: 15,
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: -0.5,
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+    fontWeight: '500',
   },
   toggleRow: {
     flexDirection: 'row',
-    backgroundColor: '#E5E5EA',
-    borderRadius: 8,
-    padding: 2,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 10,
+    padding: 3,
+    width: '100%',
   },
   toggleButton: {
+    flex: 1,
     paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 6,
+    borderRadius: 8,
+    alignItems: 'center',
   },
   activeToggle: {
     backgroundColor: '#FFF',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
     elevation: 2,
   },
   toggleText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#8E8E93',
+    color: '#64748B',
   },
   activeText: {
-    color: '#1C1C1E',
+    color: '#0F172A',
+    fontWeight: '700',
   },
   content: {
     flex: 1,
-    padding: 20,
-    justifyContent: 'center',
-    paddingVertical: 10,
-  },
-  card: {
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1C1C1E',
-    marginBottom: 10,
-  },
-  bodyText: {
-    fontSize: 15,
-    color: '#3A3A3C',
-    lineHeight: 22,
-    marginBottom: 20,
-  },
-  actionButton: {
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  actionButtonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
 });

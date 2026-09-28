@@ -9,6 +9,16 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var port = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrEmpty(port))
+{
+    builder.WebHost.UseUrls($"http://*:{port}");
+}
+else if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPNETCORE_URLS")))
+{
+    builder.WebHost.UseUrls("http://0.0.0.0:5000");
+}
+
 builder.Services.AddDbContext<StoreDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
@@ -16,15 +26,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("MobileAppPolicy", policy =>
     {
-        policy.WithOrigins(
-                "http://localhost:8081",
-                "http://127.0.0.1:8081",
-                "http://localhost:8082",
-                "http://127.0.0.1:8082",
-                "http://localhost:19006",
-                "http://localhost:3000",
-                "http://127.0.0.1:19006",
-                "http://127.0.0.1:3000")
+        policy.SetIsOriginAllowed(_ => true)
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
@@ -58,10 +60,10 @@ builder.Services.AddRateLimiter(options =>
 {
     options.AddFixedWindowLimiter("auth", limiterOptions =>
     {
-        limiterOptions.PermitLimit = 10;
+        limiterOptions.PermitLimit = 30;
         limiterOptions.Window = TimeSpan.FromMinutes(1);
         limiterOptions.QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst;
-        limiterOptions.QueueLimit = 0;
+        limiterOptions.QueueLimit = 5;
     });
 });
 
@@ -96,10 +98,8 @@ catch (Exception ex)
 
 SeedDemoAccounts(app.Services);
 
-app.MapControllers().RequireRateLimiting("auth");
+app.MapControllers();
 app.MapHub<LocalShop.Api.Hubs.OrderHub>("/hubs/orders");
-app.Urls.Add("http://*:5000");
-
 app.Run();
 
 static void EnsureUserSecurityColumns(StoreDbContext db)
