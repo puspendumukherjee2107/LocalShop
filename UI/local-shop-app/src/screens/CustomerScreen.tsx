@@ -276,7 +276,7 @@ export default function CustomerScreen({ currentUser }: CustomerScreenProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          customerName: currentUser?.name || 'Turja Sharma',
+          customerName: currentUser?.name || 'Turja Mukherjee',
           customerPhone: currentUser?.phone || '9876543210',
           shopName: selectedStore.shopName,
           itemsText: groceryListText.trim(),
@@ -324,7 +324,7 @@ export default function CustomerScreen({ currentUser }: CustomerScreenProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          customerName: currentUser?.name || 'Turja Sharma',
+          customerName: currentUser?.name || 'Turja Mukherjee',
           customerPhone: currentUser?.phone || '9876543210',
           shopName: selectedStore.shopName,
           items: cart.map(item => ({ productId: item.id, quantity: item.quantity })),

@@ -65,7 +65,7 @@ export default function SimpleCustomerScreen() {
 
   // Order Input State
   const [groceryText, setGroceryText] = useState('');
-  const [customerName, setCustomerName] = useState('Rahul Sharma');
+  const [customerName, setCustomerName] = useState('Turja Mukherjee');
   const [customerPhone, setCustomerPhone] = useState('9876543210');
   const [deliveryAddress, setDeliveryAddress] = useState('Flat 4B, Greenfield Apartments');
   const [isSubmitting, setIsSubmitting] = useState(false);

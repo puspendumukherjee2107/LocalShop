@@ -162,7 +162,7 @@ export default function OrderTrackingScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           senderRole: 'Customer',
-          senderName: 'Turja Sharma',
+          senderName: 'Turja Mukherjee',
           messageText: newChatText.trim()
         })
       });

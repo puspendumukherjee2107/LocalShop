@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LocalShop - Master Application Documentation & User Guide</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        @page {
+            size: A4;
+            margin: 18mm 16mm 18mm 16mm;
+            @bottom-right {
+                content: counter(page);
+            }
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            color: #1e293b;
+            background-color: #ffffff;
+            line-height: 1.55;
+            font-size: 13px;
+            margin: 0;
+            padding: 0;
+        }
+
+        .header-banner {
+            border-bottom: 2px solid #3b82f6;
+            padding-bottom: 12px;
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+
+        .header-title {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 800;
+            color: #0f172a;
+            letter-spacing: -0.5px;
+        }
+
+        .header-subtitle {
+            margin: 4px 0 0 0;
+            font-size: 13px;
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .meta-badge {
+            background: #eff6ff;
+            color: #1d4ed8;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            border: 1px solid #bfdbfe;
+            white-space: nowrap;
+        }
+
+        h1 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #0f172a;
+            border-bottom: 1.5px solid #e2e8f0;
+            padding-bottom: 6px;
+            margin-top: 28px;
+            margin-bottom: 14px;
+            page-break-after: avoid;
+        }
+
+        h2 {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1e293b;
+            border-left: 3px solid #3b82f6;
+            padding-left: 8px;
+            margin-top: 22px;
+            margin-bottom: 10px;
+            page-break-after: avoid;
+        }
+
+        h3 {
+            font-size: 14px;
+            font-weight: 700;
+            color: #334155;
+            margin-top: 18px;
+            margin-bottom: 8px;
+            page-break-after: avoid;
+        }
+
+        h4 {
+            font-size: 13px;
+            font-weight: 700;
+            color: #475569;
+            margin-top: 14px;
+            margin-bottom: 6px;
+            page-break-after: avoid;
+        }
+
+        p {
+            margin-top: 0;
+            margin-bottom: 10px;
+            text-align: justify;
+        }
+
+        ul, ol {
+            margin-top: 0;
+            margin-bottom: 12px;
+            padding-left: 22px;
+        }
+
+        li {
+            margin-bottom: 4px;
+        }
+
+        hr {
+            border: 0;
+            height: 1px;
+            background: #e2e8f0;
+            margin: 20px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 14px 0;
+            font-size: 12px;
+            page-break-inside: avoid;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        th, td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+            vertical-align: middle;
+        }
+
+        th {
+            background-color: #f1f5f9;
+            color: #0f172a;
+            font-weight: 700;
+            font-size: 11.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #cbd5e1;
+        }
+
+        tr:nth-child(even) td {
+            background-color: #f8fafc;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        code {
+            font-family: "Cascadia Code", "Fira Code", Consolas, Monaco, monospace;
+            font-size: 11px;
+            background: #f1f5f9;
+            color: #0f172a;
+            padding: 2px 5px;
+            border-radius: 4px;
+            border: 1px solid #e2e8f0;
+        }
+
+        pre {
+            background: #0f172a;
+            color: #f8fafc;
+            padding: 12px 14px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 11.5px;
+            line-height: 1.45;
+            margin: 12px 0;
+            page-break-inside: avoid;
+        }
+
+        pre code {
+            background: transparent;
+            color: inherit;
+            padding: 0;
+            border: none;
+            font-size: inherit;
+        }
+
+        .mermaid {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 14px;
+            margin: 16px 0;
+            text-align: center;
+            page-break-inside: avoid;
+        }
+
+        .mermaid svg {
+            max-width: 100% !important;
+            height: auto !important;
+        }
+
+        blockquote {
+            border-left: 4px solid #3b82f6;
+            background: #eff6ff;
+            margin: 12px 0;
+            padding: 8px 14px;
+            border-radius: 0 6px 6px 0;
+            font-style: italic;
+            color: #1e40af;
+        }
+
+        .page-break {
+            page-break-before: always;
+        }
+
+        a {
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .footer {
+            margin-top: 30px;
+            padding-top: 10px;
+            border-top: 1px solid #e2e8f0;
+            font-size: 10.5px;
+            color: #94a3b8;
+            display: flex;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body>
+    <div class="header-banner">
+        <div>
+            <div class="header-title">LocalShop (LocalStore)</div>
+            <div class="header-subtitle">System Architecture, Feature Specifications & Comprehensive User Guide</div>
+        </div>
+        <div class="meta-badge">Release v1.0.0 &bull; Expo SDK 57 / .NET 9</div>
+    </div>
+
+    <div id="content">
+        <h1>LocalShop (LocalStore) - Master Application Documentation &amp; User Guide</h1>
+<hr>
+<h2>1. Executive Summary &amp; Vision</h2>
+<p><strong>LocalShop</strong> (internal project name: <code>LocalStore</code>) is a hyper-local quick-commerce ecosystem engineered to empower neighborhood mom-and-pop stores (Kirana shops, bakeries, pharmacies, and specialty retailers) to compete directly with centralized quick-commerce platforms like Blinkit, Zepto, and Instamart.</p>
+<p>Unlike legacy e-commerce platforms that force small shop owners to digitize thousands of complex SKUs upfront, LocalShop offers a <strong>dual-channel purchasing model</strong>:</p>
+<ol>
+<li><strong>Standard Catalog Browsing</strong>: Digital storefront with categories, item descriptions, and stock status.</li>
+<li><strong>&quot;Parchi&quot; / Custom Grocery List Ordering</strong>: Customers type a freeform grocery list or upload a handwritten note, which the merchant directly quotes and prices line-by-line.</li>
+</ol>
+<p>The platform provides dedicated, role-specific interfaces for four user personas:</p>
+<ul>
+<li>🛒 <strong>Customer</strong>: Neighborhood shopper ordering everyday essentials.</li>
+<li>🏪 <strong>Merchant</strong>: Local store owner managing stock, quoting list orders, and fulfilling items.</li>
+<li>🛵 <strong>Delivery Partner</strong>: Field agent picking up bagged orders and completing delivery via secure OTP handshakes.</li>
+<li>🛡️ <strong>Administrator</strong>: Platform operator managing merchant KYC, commission rates, and dispute resolution.</li>
+</ul>
+<hr>
+<h2>2. Technical Stack &amp; System Architecture</h2>
+<pre><code class="language-mermaid">flowchart TD
+    subgraph Mobile Client [&quot;Expo SDK 57 Mobile App (Android / iOS / Web)&quot;]
+        UI_Cust[&quot;Customer Screens&quot;]
+        UI_Merch[&quot;Merchant Dashboard&quot;]
+        UI_Rider[&quot;Delivery Partner Flow&quot;]
+        UI_Admin[&quot;Admin Controls&quot;]
+        StateMgr[&quot;AuthContext &amp; API Services&quot;]
+    end
+
+    subgraph Network [&quot;Networking &amp; Tunnels&quot;]
+        CF[&quot;Cloudflare HTTPS Tunnel / Reverse Proxy&quot;]
+    end
+
+    subgraph Backend [&quot;ASP.NET Core 9.0 Web API&quot;]
+        Controllers[&quot;REST Controllers (Auth, Stores, Orders, Coupons, Delivery, Admin)&quot;]
+        JWT[&quot;JWT Bearer Authentication &amp; Claims&quot;]
+        EF[&quot;Entity Framework Core 9.0&quot;]
+        Hub[&quot;SignalR Real-Time Tracking Hub&quot;]
+    end
+
+    subgraph Storage [&quot;Database &amp; File Store&quot;]
+        SQLite[(&quot;LocalStore.db (SQLite)&quot;)]
+        Media[&quot;Local Uploads / Evidence Photos&quot;]
+    end
+
+    UI_Cust --&gt; StateMgr
+    UI_Merch --&gt; StateMgr
+    UI_Rider --&gt; StateMgr
+    UI_Admin --&gt; StateMgr
+
+    StateMgr --&gt;|HTTPS Requests| CF
+    CF --&gt; Controllers
+    Controllers --&gt; JWT
+    Controllers --&gt; EF
+    Controllers --&gt; Hub
+    EF --&gt; SQLite
+    Controllers --&gt; Media
+</code></pre>
+<h3>Technology Matrix</h3>
+<table>
+<thead>
+<tr>
+<th align="left">Layer</th>
+<th align="left">Technologies Used</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left"><strong>Mobile App (Frontend)</strong></td>
+<td align="left">React Native, Expo SDK 57, TypeScript</td>
+<td align="left">Single cross-platform codebase supporting Android APK/AAB, iOS, and Web.</td>
+</tr>
+<tr>
+<td align="left"><strong>Navigation &amp; UI</strong></td>
+<td align="left">React Navigation (Native Stack), React Native Vector Icons, SafeAreaContext</td>
+<td align="left">Smooth native page transitions, modal overlays, responsive tabs.</td>
+</tr>
+<tr>
+<td align="left"><strong>Backend API</strong></td>
+<td align="left">C# .NET 9.0 ASP.NET Core Web API</td>
+<td align="left">RESTful backend with dependency injection, middleware pipeline, and logging.</td>
+</tr>
+<tr>
+<td align="left"><strong>Database &amp; ORM</strong></td>
+<td align="left">SQLite, Entity Framework Core 9.0</td>
+<td align="left">Local portable database with auto-migrated schema and seed data.</td>
+</tr>
+<tr>
+<td align="left"><strong>Authentication</strong></td>
+<td align="left">JWT (JSON Web Tokens), BCrypt Password Hashing</td>
+<td align="left">Role-based access control (<code>Customer</code>, <code>Merchant</code>, <code>DeliveryPartner</code>, <code>Admin</code>).</td>
+</tr>
+<tr>
+<td align="left"><strong>Real-time Services</strong></td>
+<td align="left">SignalR Hubs / Polling fallback</td>
+<td align="left">Real-time order progress updates, store open/closed sync, and instant quotes.</td>
+</tr>
+<tr>
+<td align="left"><strong>External Integrations</strong></td>
+<td align="left">Direct Phone Intent, Google Maps Intent</td>
+<td align="left">Direct calling and turn-by-turn GPS navigation.</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>3. Core Role Personas &amp; Access Matrix</h2>
+<table>
+<thead>
+<tr>
+<th align="left">Feature / Screen</th>
+<th align="center">Customer</th>
+<th align="center">Merchant</th>
+<th align="center">Delivery Partner</th>
+<th align="center">Administrator</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">Store Discovery &amp; Search</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">✅</td>
+</tr>
+<tr>
+<td align="left">Standard Catalog Ordering</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td align="left">Handwritten List Upload (&quot;Parchi&quot;)</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td align="left">Coupon Application (<code>FIRST50</code>, etc.)</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td align="left">Order Tracking &amp; Delivery Handshake OTP</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td align="left">Product &amp; Inventory Management</td>
+<td align="center">❌</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">✅</td>
+</tr>
+<tr>
+<td align="left">List-Order Quotation &amp; Pricing</td>
+<td align="center">❌</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td align="left">Order Preparation &amp; Dispatch</td>
+<td align="center">❌</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td align="left">Order Acceptance &amp; Turn-by-Turn GPS</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td align="left">Customer Drop-off Handshake Verification</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td align="left">Merchant KYC &amp; Onboarding Approval</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">✅</td>
+</tr>
+<tr>
+<td align="left">System Auditing &amp; Platform Metrics</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+<td align="center">✅</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>4. Screen-by-Screen Breakdown &amp; Use Cases</h2>
+<h3>4.1 Customer Persona Screens</h3>
+<h4>1. Authentication &amp; Welcome (<code>LoginScreen</code> / <code>RegisterScreen</code>)</h4>
+<ul>
+<li><strong>Purpose</strong>: Authenticates registered users or onboards new customers with phone number verification.</li>
+<li><strong>Key Elements</strong>:<ul>
+<li>Phone Number and Password inputs.</li>
+<li>Role selection switch (Customer, Merchant, Delivery).</li>
+<li>Fast-fill demo buttons for quick evaluation (<code>Demo Customer</code>, <code>Demo Merchant</code>, <code>Demo Rider</code>, <code>Demo Admin</code>).</li>
+<li>&quot;Remember Me&quot; toggle with secure local token persistence.</li>
+</ul>
+</li>
+</ul>
+<h4>2. Discovery &amp; Home Screen (<code>HomeScreen</code>)</h4>
+<ul>
+<li><strong>Purpose</strong>: Primary dashboard for customers to find nearby verified stores and current deals.</li>
+<li><strong>Key Elements</strong>:<ul>
+<li><strong>Top Location Bar</strong>: Current neighborhood or delivery address selector.</li>
+<li><strong>Quick Filter Badges</strong>: Categories like <em>Groceries</em>, <em>Dairy &amp; Eggs</em>, <em>Snacks</em>, <em>Beverages</em>, <em>Pharmacy</em>, <em>Personal Care</em>.</li>
+<li><strong>Store Cards</strong>: Displays Store Name, banner image, average rating (e.g., ⭐ 4.8), distance (e.g., 0.8 km), and estimated delivery time (e.g., 15-25 mins).</li>
+<li><strong>Promotional Banner Carousel</strong>: Showcases active discount codes (<code>FIRST50</code> - 50% off first order).</li>
+</ul>
+</li>
+</ul>
+<h4>3. Store Front &amp; Ordering Screen (<code>StoreScreen</code>)</h4>
+<ul>
+<li><strong>Purpose</strong>: Dual-mode shopping screen allowing catalog selection or custom grocery list submission.</li>
+<li><strong>Key Elements</strong>:<ul>
+<li><strong>Store Header</strong>: Store contact info, operating hours, delivery radius, and minimum order threshold.</li>
+<li><strong>Tab 1: Digital Catalog</strong>:<ul>
+<li>Search bar with real-time text matching.</li>
+<li>Category accordion tabs.</li>
+<li>Product tiles with high-res images, pricing (MRP vs Discounted Price), and quantity steppers (<code>-</code>, <code>qty</code>, <code>+</code>).</li>
+</ul>
+</li>
+<li><strong>Tab 2: &quot;Order via List&quot; (Custom Parchi Mode)</strong>:<ul>
+<li>Text area for pasting or typing multi-line grocery lists (e.g., &quot;1kg Aashirvaad Atta, 500g Amul Butter, 2 packets Maggi&quot;).</li>
+<li>Photo attachment button to snap a picture of a handwritten notepad.</li>
+<li>Submit button that dispatches the list to the merchant for custom quotation.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h4>4. Cart &amp; Checkout (<code>CartScreen</code>)</h4>
+<ul>
+<li><strong>Purpose</strong>: Review selected items, apply discounts, choose delivery address, and place order.</li>
+<li><strong>Key Elements</strong>:<ul>
+<li><strong>Item Summary</strong>: Item breakdown with individual and cumulative totals.</li>
+<li><strong>Promo Code Module</strong>: Input box supporting instant validation for codes like <code>FIRST50</code>, <code>KIRANA10</code>, and <code>FLAT20</code>.</li>
+<li><strong>Delivery Fee Calculation</strong>: Dynamic distance-based fee with threshold for free delivery.</li>
+<li><strong>Payment Options</strong>: Cash on Delivery (COD), UPI Mock Gateway, and Net Banking/Cards.</li>
+<li><strong>&quot;Place Order&quot; Button</strong>: Creates order record and triggers real-time notification to the merchant.</li>
+</ul>
+</li>
+</ul>
+<h4>5. Live Order Tracking (<code>OrderTrackingScreen</code>)</h4>
+<ul>
+<li><strong>Purpose</strong>: Real-time status visibility from shop confirmation to front-door dropoff.</li>
+<li><strong>Key Elements</strong>:<ul>
+<li><strong>Dynamic Status Timeline</strong>:<ul>
+<li>🟡 <code>Pending</code> (Awaiting Store Acceptance)</li>
+<li>🟠 <code>Preparing</code> (Store packing goods)</li>
+<li>🔵 <code>ReadyForPickup</code> (Assigned to rider)</li>
+<li>🟣 <code>OutForDelivery</code> (Rider en-route)</li>
+<li>🟢 <code>Delivered</code> (Completed)</li>
+</ul>
+</li>
+<li><strong>4-Digit Handshake OTP Banner</strong>: Secure code (e.g., <code>4821</code>) that the customer must verbally provide to the rider before goods are handed over.</li>
+<li><strong>Direct Contact Option</strong>: Call merchant or partner directly from the order card.</li>
+<li><strong>Real-time Approval &amp; Handshake</strong>: Direct one-tap approval and order confirmation without third-party messaging apps.</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h3>4.2 Merchant Persona Screens</h3>
+<h4>1. Merchant Dashboard (<code>MerchantDashboardScreen</code>)</h4>
+<ul>
+<li><strong>Purpose</strong>: Central operational hub for the store owner.</li>
+<li><strong>Key Elements</strong>:<ul>
+<li><strong>Today&#39;s Metric Tiles</strong>: Daily Sales GMV (₹), Total Orders, Pending Quotations, Completed Deliveries.</li>
+<li><strong>Store Status Toggle</strong>: Instant <code>Open</code> / <code>Closed</code> switch to pause incoming orders.</li>
+<li><strong>Order Pipeline Feed</strong>: Filterable tabs for <code>Incoming</code>, <code>In Progress</code>, and <code>Past Orders</code>.</li>
+</ul>
+</li>
+</ul>
+<h4>2. Catalog &amp; Inventory Management (<code>InventoryScreen</code>)</h4>
+<ul>
+<li><strong>Purpose</strong>: Manage products, adjust prices, and toggle in-stock / out-of-stock items.</li>
+<li><strong>Key Elements</strong>:<ul>
+<li><strong>Add Product Modal</strong>: Upload product picture, enter title, SKU, category, cost price, and retail price.</li>
+<li><strong>Stock Stepper</strong>: Quick increment/decrement buttons for quick physical counts.</li>
+<li><strong>Instant Stock Toggle</strong>: Switch to mark sold-out items so customers cannot order them.</li>
+</ul>
+</li>
+</ul>
+<h4>3. Custom List Order Quotation Screen (<code>MerchantQuoteScreen</code>)</h4>
+<ul>
+<li><strong>Purpose</strong>: Review customer-submitted handwritten or typed grocery lists and supply prices.</li>
+<li><strong>Key Elements</strong>:<ul>
+<li>Side-by-side view of the customer&#39;s text list or scanned paper note.</li>
+<li>Dynamic line-item inputs where the merchant fills in product availability and price.</li>
+<li>&quot;Send Quote to Customer&quot; action button. The customer receives a notification to approve or reject the final total.</li>
+</ul>
+</li>
+</ul>
+<h4>4. Order Fulfillment &amp; Dispatch Screen</h4>
+<ul>
+<li><strong>Purpose</strong>: Advance orders through physical fulfillment steps.</li>
+<li><strong>Key Elements</strong>:<ul>
+<li>Printable / viewable packing checklist with checkboxes.</li>
+<li>&quot;Order Packed &amp; Ready&quot; button: Alerts nearby available delivery riders for pickup.</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h3>4.3 Delivery Partner Persona Screens</h3>
+<h4>1. Rider Availability &amp; Deliveries Queue (<code>DeliveryPartnerScreen</code>)</h4>
+<ul>
+<li><strong>Purpose</strong>: Field dashboard for riders to claim, inspect, and fulfill deliveries.</li>
+<li><strong>Key Elements</strong>:<ul>
+<li><strong>Duty Toggle</strong>: <code>Online</code> (accepting jobs) / <code>Offline</code> (resting).</li>
+<li><strong>Available Deliveries Feed</strong>: Card showing pickup merchant address, customer drop-off distance, estimated delivery fee earned, and item count.</li>
+<li><strong>&quot;Accept Delivery&quot; Button</strong>: Locks the order to the rider and reveals customer address details.</li>
+</ul>
+</li>
+</ul>
+<h4>2. Turn-by-Turn Routing &amp; Customer Communication</h4>
+<ul>
+<li><strong>Purpose</strong>: Safe and fast transit to the merchant and customer.</li>
+<li><strong>Key Elements</strong>:<ul>
+<li><strong>&quot;Navigate with Google Maps&quot; Button</strong>: Launches native Google Maps with coordinates pre-populated.</li>
+<li><strong>Customer Contact Card</strong>: Masked calling button and in-app chat for gate codes or landmark clarification.</li>
+</ul>
+</li>
+</ul>
+<h4>3. Secure Handshake Verification Modal</h4>
+<ul>
+<li><strong>Purpose</strong>: Guarantees goods are delivered to the authorized person and prevents false disputes.</li>
+<li><strong>Key Elements</strong>:<ul>
+<li>4-digit numeric pin pad.</li>
+<li>Real-time verification against backend <code>DeliveryOtp</code> hash.</li>
+<li>Photo proof upload (optional landmark dropoff confirmation).</li>
+<li>&quot;Complete Delivery&quot; button: Releases delivery partner payout and marks order <code>Delivered</code>.</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h3>4.4 Administrator Persona Screens</h3>
+<h4>1. Platform Operations Dashboard (<code>AdminDashboardScreen</code>)</h4>
+<ul>
+<li><strong>Purpose</strong>: High-level platform health monitoring.</li>
+<li><strong>Key Elements</strong>:<ul>
+<li>Aggregate Gross Merchandise Value (GMV), Active Users, Verified Stores, Active Delivery Fleet.</li>
+<li>System health indicators (API response times, database size, error log count).</li>
+</ul>
+</li>
+</ul>
+<h4>2. Merchant Verification &amp; KYC Portal</h4>
+<ul>
+<li><strong>Purpose</strong>: Ensures only legitimate local businesses operate on the network.</li>
+<li><strong>Key Elements</strong>:<ul>
+<li>Review merchant business registration, FSSAI license (food safety), and address proof.</li>
+<li>One-click <code>Approve Store</code> or <code>Reject with Reason</code> actions.</li>
+</ul>
+</li>
+</ul>
+<h4>3. Dispute &amp; Settlement Oversight</h4>
+<ul>
+<li><strong>Purpose</strong>: Review cancelled orders, manage customer refunds, and audit merchant payouts.</li>
+<li><strong>Key Elements</strong>:<ul>
+<li>Audit trail of timestamped order events.</li>
+<li>Manual override tool for canceled order compensations.</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h2>5. End-to-End User Guides &amp; Workflows</h2>
+<h3>5.1 Streamlined Role Selection, Login &amp; Direct Workflow (Current Active App Experience)</h3>
+<p>The application provides a clean, role-gated onboarding journey:</p>
+<ol>
+<li><strong>Role Selection Landing Screen</strong>: When launching the app, the user chooses who they are:<ul>
+<li>🛒 <strong>Customer</strong>: Neighborhood shopper ordering essentials.</li>
+<li>🏪 <strong>Store Owner (Merchant)</strong>: Local retailer quoting prices and fulfilling orders.</li>
+<li>🛡️ <strong>Administrator</strong>: Platform operator overseeing stores and metrics.</li>
+</ul>
+</li>
+<li><strong>Dedicated Login Screen</strong>:<ul>
+<li>The user enters their phone/key and password to log in.</li>
+<li><strong>1-Tap Quick Fill Demo Buttons</strong> are provided on all login screens for rapid evaluation:<ul>
+<li>Customer: Rahul Sharma (<code>9876543210</code> / <code>Customer@2026!</code>)</li>
+<li>Merchant: Kirana Junction (<code>9876500000</code> / <code>Merchant@2026!</code>)</li>
+<li>Admin: Super Admin (<code>superadmin</code> / <code>Admin@2026!</code>)</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><strong>Streamlined Post-Login Experience</strong>:<ul>
+<li><strong>Customer</strong>: Selects merchant, writes/adds grocery items, places order, reviews &amp; approves price quote, tracks packing status, and confirms delivery &amp; payment completion.</li>
+<li><strong>Merchant</strong>: Live store open/closed status toggle banner (<code>[Open Shop 🟢]</code> / <code>[Close Shop 🔴]</code>) to control whether the shop is actively accepting orders, receives incoming customer grocery lists, calculates shelf prices with the built-in calculator, sends price quotes, marks orders packed, and marks orders delivered &amp; paid.</li>
+<li><strong>Admin</strong>: Accesses root metrics and store KYC verifications.</li>
+<li><strong>Role Switching</strong>: A prominent <strong>&quot;← Switch Role&quot;</strong> button at the top header allows logging out and switching personas at any time.</li>
+</ul>
+</li>
+</ol>
+<pre><code class="language-mermaid">sequenceDiagram
+    autonumber
+    actor U as User
+    participant App as LocalShop App
+    participant API as C# Web API
+
+    Note over U,App: Step 0: Role Selection &amp; Login
+    U-&gt;&gt;App: Opens App &amp; Selects Role (Customer / Merchant / Admin)
+    App-&gt;&gt;U: Displays Role-Specific Login Screen
+    U-&gt;&gt;App: Inputs Credentials (or taps 1-Click Demo Fill)
+    App-&gt;&gt;API: POST /api/auth/login
+    API--&gt;&gt;App: JWT &amp; Profile Verified -&gt; Access Granted
+
+    Note over U,App: Step 1: Customer Places Order
+    U-&gt;&gt;App: Selects Merchant &amp; Types Grocery Items
+    U-&gt;&gt;App: Taps &quot;Send Order to Merchant&quot;
+    App-&gt;&gt;API: POST /api/orders/list (Status: QuoteRequested)
+
+    Note over U,App: Step 2: Merchant Calculates &amp; Quotes Price
+    U-&gt;&gt;App: (In Merchant Mode) Calculates Shelf Prices
+    U-&gt;&gt;App: Inputs Total Price (₹) &amp; Taps &quot;Send Price Quote&quot;
+    App-&gt;&gt;API: PUT /api/orders/{id}/quote (Status: PriceQuoted)
+
+    Note over U,App: Step 3: Customer Approves Order
+    U-&gt;&gt;App: (In Customer Mode) Reviews Bill &amp; Taps &quot;Approve Order&quot;
+    App-&gt;&gt;API: PUT /api/orders/{id}/approve (Status: Approved)
+
+    Note over U,App: Step 4: Merchant Confirms Packed
+    U-&gt;&gt;App: (In Merchant Mode) Packs Items &amp; Taps &quot;Mark Order Packed&quot;
+    App-&gt;&gt;API: PUT /api/orders/{id}/packed (Status: Packed)
+
+    Note over U,App: Step 5: Direct Transfer (Pickup or Store Delivery)
+    Note over U,App: Step 6: Merchant Marks Delivered &amp; Payment Received
+    U-&gt;&gt;App: (In Merchant Mode) Taps &quot;Mark Delivered &amp; Payment Done&quot;
+    App-&gt;&gt;API: PUT /api/orders/{id}/delivered-and-paid (Status: DeliveredAndPaymentDone)
+
+    Note over U,App: Step 7: Customer Final Approval
+    U-&gt;&gt;App: (In Customer Mode) Taps &quot;Confirm Delivery &amp; Payment Done&quot;
+    App-&gt;&gt;API: PUT /api/orders/{id}/customer-confirm (Status: Completed)
+</code></pre>
+<hr>
+<h3>5.2 Advanced Multi-Role Journey (Preserved for Future Fleet Activation)</h3>
+<pre><code class="language-mermaid">sequenceDiagram
+    autonumber
+    actor C as Customer
+    participant App as Mobile App
+    participant API as C# Web API
+    actor M as Merchant
+    actor D as Delivery Partner
+
+    C-&gt;&gt;App: Opens App &amp; Selects &quot;Kirana Junction&quot;
+    App-&gt;&gt;C: Displays Categories &amp; Stock
+    C-&gt;&gt;App: Adds items to Cart &amp; enters &quot;FIRST50&quot;
+    App-&gt;&gt;API: POST /api/coupons/validate
+    API--&gt;&gt;App: Coupon Validated (50% discount applied)
+    C-&gt;&gt;App: Clicks &quot;Place Order&quot; (Cash on Delivery)
+    App-&gt;&gt;API: POST /api/orders
+    API--&gt;&gt;M: Notifies Merchant of New Order
+    M-&gt;&gt;API: PUT /api/orders/{id}/status (Preparing)
+    API--&gt;&gt;App: Real-time update: &quot;Store is packing your items&quot;
+    M-&gt;&gt;API: PUT /api/orders/{id}/status (ReadyForPickup)
+    API--&gt;&gt;D: Notifies nearby Delivery Partner
+    D-&gt;&gt;API: POST /api/delivery/accept/{id}
+    D-&gt;&gt;M: Picks up packed bag from store
+    D-&gt;&gt;API: PUT /api/orders/{id}/status (OutForDelivery)
+    API--&gt;&gt;App: Updates: &quot;Rider is en-route&quot; + Displays OTP (e.g. 4821)
+    D-&gt;&gt;C: Arrives at customer doorstep
+    C-&gt;&gt;D: Provides verbal OTP: 4821
+    D-&gt;&gt;API: POST /api/delivery/verify-otp (4821)
+    API--&gt;&gt;D: OTP Accepted -&gt; Order Delivered
+    API--&gt;&gt;App: Order Complete! Prompt for review
+</code></pre>
+<hr>
+<h3>5.2 Customer &quot;Parchi&quot; / Custom Grocery List Journey</h3>
+<ol>
+<li><strong>Step 1: Compose List</strong>: Customer taps the <strong>Order via List</strong> tab on the store screen.</li>
+<li><strong>Step 2: Input Choices</strong>:<ul>
+<li><em>Option A</em>: Type line items into the structured text editor (e.g., <code>1. Fortune Sunflower Oil 1L</code>, <code>2. Tata Salt 1kg</code>, <code>3. Good Day Biscuits 2 packs</code>).</li>
+<li><em>Option B</em>: Take a photo of a physical handwritten paper slip.</li>
+</ul>
+</li>
+<li><strong>Step 3: Submit</strong>: Tap <strong>Send List to Store</strong>.</li>
+<li><strong>Step 4: Merchant Quotation</strong>: The merchant receives the list on their dashboard, checks shelf availability, types the unit prices, and clicks <strong>Dispatch Quote</strong>.</li>
+<li><strong>Step 5: Review &amp; Checkout</strong>: The customer receives a push alert: <em>&quot;Kirana Junction sent a quotation of ₹340 for your list&quot;</em>. The customer reviews itemized prices, applies any coupons, and clicks <strong>Accept &amp; Pay</strong>.</li>
+</ol>
+<hr>
+<h3>5.3 Delivery Handshake Workflow</h3>
+<p>To eliminate fraud, disputes, or missing package claims, LocalShop enforces a <strong>Cryptographic OTP Handshake</strong>:</p>
+<ol>
+<li>When an order transitions to <code>OutForDelivery</code>, the C# backend generates a randomized 4-digit code (e.g., <code>5912</code>).</li>
+<li>This code is shown <strong>only</strong> on the Customer&#39;s <code>OrderTrackingScreen</code> inside a high-contrast security badge.</li>
+<li>The Delivery Partner arrives at the customer&#39;s doorstep and requests the code.</li>
+<li>The rider inputs the code into the mobile app.</li>
+<li>The API verifies the code against the database. If correct, the order transitions to <code>Delivered</code>, the merchant&#39;s escrow balance updates, and the rider&#39;s delivery fee is credited.</li>
+</ol>
+<hr>
+<h2>6. Pre-Configured Demo Accounts &amp; Testing Credentials</h2>
+<p>The SQLite database (<code>LocalStore.db</code>) comes pre-seeded with complete test scenarios:</p>
+<table>
+<thead>
+<tr>
+<th align="left">Persona</th>
+<th align="left">Username / Phone</th>
+<th align="left">Password</th>
+<th align="left">Associated Profile / Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">🛒 <strong>Customer</strong></td>
+<td align="left"><code>9876543210</code></td>
+<td align="left"><code>Customer@2026!</code></td>
+<td align="left">Rahul Sharma (Indiranagar, Bangalore)</td>
+</tr>
+<tr>
+<td align="left">🏪 <strong>Merchant</strong></td>
+<td align="left"><code>9876500000</code></td>
+<td align="left"><code>Merchant@2026!</code></td>
+<td align="left">Kirana Junction (Store ID: 1)</td>
+</tr>
+<tr>
+<td align="left">🛵 <strong>Delivery Rider 1</strong></td>
+<td align="left"><code>delivery001</code></td>
+<td align="left"><code>Delivery@2026!</code></td>
+<td align="left">Rohan Das (Hero Splendor, 4.9⭐)</td>
+</tr>
+<tr>
+<td align="left">🛵 <strong>Delivery Rider 2</strong></td>
+<td align="left"><code>delivery002</code></td>
+<td align="left"><code>Delivery@2026!</code></td>
+<td align="left">Aman Verma (Honda Activa, 4.8⭐)</td>
+</tr>
+<tr>
+<td align="left">🛡️ <strong>Platform Admin</strong></td>
+<td align="left"><code>superadmin</code></td>
+<td align="left"><code>Admin@2026!</code></td>
+<td align="left">Full administrative clearance</td>
+</tr>
+</tbody></table>
+<h3>Active Demo Promo Codes</h3>
+<ul>
+<li><strong><code>FIRST50</code></strong>: 50% discount on first-time orders (capped at ₹100).</li>
+<li><strong><code>KIRANA10</code></strong>: Flat 10% discount on orders above ₹300.</li>
+<li><strong><code>FLAT20</code></strong>: Flat ₹20 off on grocery orders above ₹150.</li>
+</ul>
+<hr>
+<h2>7. Developer &amp; Tester Operations Guide</h2>
+<h3>7.1 Running the Backend API Locally</h3>
+<pre><code class="language-powershell"># Navigate to the API folder
+cd &quot;c:\PM Project\LocalStore\LocalShop.Api&quot;
+
+# Ensure all database migrations are applied
+dotnet ef database update
+
+# Run the API on Port 5000
+dotnet run --urls &quot;http://0.0.0.0:5000&quot;
+</code></pre>
+<ul>
+<li>Swagger UI documentation: <code>http://localhost:5000/swagger</code></li>
+</ul>
+<h3>7.2 Exposing API for Mobile Devices via Cloudflare Tunnel</h3>
+<p>Because modern Android versions (Android 9+) block plain HTTP (<code>CLEARTEXT_NOT_PERMITTED</code>), remote physical devices must connect via an encrypted HTTPS URL:</p>
+<pre><code class="language-powershell">cloudflared tunnel --url http://127.0.0.1:5000
+</code></pre>
+<p>Update <code>apiConfig.ts</code> with the generated URL:</p>
+<pre><code class="language-typescript">export const API_BASE_URL = &#39;https://&lt;your-cloudflare-subdomain&gt;.trycloudflare.com/api&#39;;
+</code></pre>
+<h3>7.3 Running the Mobile App (Local Development)</h3>
+<pre><code class="language-powershell"># Navigate to the mobile app folder
+cd &quot;c:\PM Project\LocalStore\UI\local-shop-app&quot;
+
+# Install dependencies (respecting peer dependencies)
+npm install --legacy-peer-deps
+
+# Start Expo dev server
+npx expo start --clear
+</code></pre>
+<h3>7.4 Downloading &amp; Testing the Standalone Android APK</h3>
+<ul>
+<li><strong>Direct Download Link</strong>: <a href="https://expo.dev/artifacts/eas/eA3ZlHhgdzmL_U_I5Qfq9PKJ5b0jKX-H_7rHpZmApZU.apk">Download LocalShop APK v1.0.0</a></li>
+<li><strong>Build Details &amp; QR Code</strong>: <a href="https://expo.dev/accounts/puspendu_dev/projects/local-shop-app/builds/b0481fb5-de69-476c-93ec-306d84a4803d">Expo EAS Build Dashboard</a></li>
+</ul>
+<hr>
+<h2>8. Summary of Completed System Hardening</h2>
+<ol>
+<li><strong>Expo SDK 57 Upgrade</strong>: Updated all native dependencies including <code>react-native 0.86.3</code>, <code>react-native-reanimated 4.5.1</code>, and <code>react-native-screens 4.27.0</code>.</li>
+<li><strong>TypeScript Compilation</strong>: Fixed typing mismatches across all order tracking and delivery screens.</li>
+<li><strong>Android Security Compliance</strong>: Replaced raw IP HTTP requests with SSL-terminated HTTPS endpoints to prevent Android cleartext network blocks.</li>
+<li><strong>Multi-Role Seed Dataset</strong>: Verified database seeding with 4 role personas, active store inventories, and promotional coupons.</li>
+</ol>
+
+
+    </div>
+
+    <div class="footer">
+        <span>LocalShop Quick-Commerce Platform Documentation</span>
+        <span>Generated for Android / iOS / Web &bull; Confidential & Internal</span>
+    </div>
+
+    <script>
+        document.querySelectorAll('pre code.language-mermaid').forEach((el) => {
+            const parent = el.parentElement;
+            const div = document.createElement('div');
+            div.className = 'mermaid';
+            div.textContent = el.textContent;
+            parent.replaceWith(div);
+        });
+
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            },
+            sequence: {
+                useMaxWidth: true,
+                showSequenceNumbers: true
+            }
+        });
+    </script>
+</body>
+</html>

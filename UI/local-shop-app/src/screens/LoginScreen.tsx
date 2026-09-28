@@ -206,7 +206,7 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }: Logi
               setPassword('Customer@2026!');
             }}
           >
-            <Text style={{ color: '#1D4ED8', fontSize: 13, fontWeight: '600' }}>⚡ Quick Fill Demo: Rahul Sharma (Customer)</Text>
+            <Text style={{ color: '#1D4ED8', fontSize: 13, fontWeight: '600' }}>⚡ Quick Fill Demo: Turja Mukherjee (Customer)</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.submitButton} onPress={handleLogin}>

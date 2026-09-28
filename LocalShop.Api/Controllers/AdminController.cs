@@ -100,7 +100,7 @@ public class AdminController : ControllerBase
         {
             var seed = new List<User>
             {
-                new() { Name = "Turja Sharma", Phone = "9876543210", Address = "Flat 4B, Greenfield Apartments", Status = "Active" },
+                new() { Name = "Turja Mukherjee", Phone = "9876543210", Address = "Flat 4B, Greenfield Apartments", Status = "Active" },
                 new() { Name = "Rahul Verma", Phone = "9123456789", Address = "Pocket 2, Mayur Vihar", Status = "Flagged" }
             };
             _context.Users.AddRange(seed);

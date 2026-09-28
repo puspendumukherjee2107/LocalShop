@@ -90,7 +90,7 @@ export default function HomeScreen() {
               <Text style={styles.headerTitle}>LocalShop</Text>
               <Text style={styles.headerSubtitle}>
                 {mainRole === 'customer'
-                  ? (customerAuth ? `Customer: ${currentUser?.name || 'Rahul'}` : 'Customer Login')
+                  ? (customerAuth ? `Customer: ${currentUser?.name || 'Turja'}` : 'Customer Login')
                   : mainRole === 'merchant'
                   ? (merchantShop ? `Merchant: ${merchantShop}` : 'Merchant Portal')
                   : mainRole === 'admin'

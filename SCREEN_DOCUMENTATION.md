@@ -70,7 +70,7 @@ This document provides an exhaustive, screen-by-screen breakdown of every user i
 | Field / Button | Input Type | Validation & Rules |
 | :--- | :--- | :--- |
 | **Mobile Number** | Phone Pad | Exactly 10 digits (`^[0-9]{10}$`). |
-| **Full Name** | Text | Required during registration (e.g. `Turja Sharma`). |
+| **Full Name** | Text | Required during registration (e.g. `Turja Mukherjee`). |
 | **Password** | Secure Text | Min 6 characters. Stored as SHA-256 hash. |
 | **Default Address** | Multiline | Default delivery address for orders. |
 | **Sign In / Sign Up** | Button | Calls `POST /api/auth/login` or `/api/auth/register`. |

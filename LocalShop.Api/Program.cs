@@ -144,7 +144,7 @@ static void SeedDemoAccounts(IServiceProvider services)
     using var scope = services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<StoreDbContext>();
 
-    EnsureDemoUser(db, "Customer", "9876543210", "Demo Customer", "Customer@2026!", "Downtown Residency");
+    EnsureDemoUser(db, "Customer", "9876543210", "Turja Mukherjee", "Customer@2026!", "Flat 4B, Greenfield Apartments");
     EnsureDemoUser(db, "Admin", "superadmin", "System Admin", "Admin@2026!", "Head Office");
     EnsureDemoUser(db, "Merchant", "9876500000", "Kirana Junction", "Merchant@2026!", "Main Market");
     EnsureDemoUser(db, "Delivery", "delivery001", "Rohan Das", "Delivery@2026!", "City Hub");

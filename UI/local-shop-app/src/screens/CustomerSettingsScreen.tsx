@@ -13,10 +13,10 @@ interface Props {
 }
 
 export default function CustomerSettingsScreen({ currentUser, onProfileUpdated }: Props) {
-  const [name, setName] = useState(currentUser?.name || 'Turja Sharma');
+  const [name, setName] = useState(currentUser?.name || 'Turja Mukherjee');
   const [phone] = useState(currentUser?.phone || '9876543210');
   const [address, setAddress] = useState(currentUser?.address || 'Flat 4B, Greenfield Apartments');
-  const [recoveryEmail, setRecoveryEmail] = useState('turja.recovery@email.com');
+  const [recoveryEmail, setRecoveryEmail] = useState('turja.mukherjee@email.com');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
