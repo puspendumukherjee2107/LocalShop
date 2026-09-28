@@ -42,10 +42,9 @@ interface OrderItem {
 
 interface SimpleMerchantScreenProps {
   shopName?: string;
-  onLogout?: () => void;
 }
 
-export default function SimpleMerchantScreen({ shopName = 'Kirana Junction', onLogout }: SimpleMerchantScreenProps) {
+export default function SimpleMerchantScreen({ shopName = 'Kirana Junction' }: SimpleMerchantScreenProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [isTogglingOpen, setIsTogglingOpen] = useState(false);
   const [orders, setOrders] = useState<OrderItem[]>([]);
@@ -311,25 +310,17 @@ export default function SimpleMerchantScreen({ shopName = 'Kirana Junction', onL
           </View>
         </View>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <TouchableOpacity
-            style={styles.refreshBtn}
-            onPress={() => {
-              fetchOrders();
-              fetchStoreProfile();
-            }}
-            disabled={isLoading}
-          >
-            <RefreshCw size={16} color="#007AFF" />
-            <Text style={styles.refreshText}>Refresh</Text>
-          </TouchableOpacity>
-
-          {onLogout && (
-            <TouchableOpacity style={styles.headerLogoutBtn} onPress={onLogout} activeOpacity={0.7}>
-              <Text style={styles.headerLogoutText}>🚪 Log Out</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+        <TouchableOpacity
+          style={styles.refreshBtn}
+          onPress={() => {
+            fetchOrders();
+            fetchStoreProfile();
+          }}
+          disabled={isLoading}
+        >
+          <RefreshCw size={16} color="#007AFF" />
+          <Text style={styles.refreshText}>Refresh</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Store Open / Closed Status & Toggle Control Banner */}
@@ -663,19 +654,6 @@ const styles = StyleSheet.create({
     color: '#007AFF',
     fontWeight: '600',
     marginLeft: 4
-  },
-  headerLogoutBtn: {
-    backgroundColor: '#FEF2F2',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#FECACA',
-  },
-  headerLogoutText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#DC2626',
   },
   filterRow: {
     flexDirection: 'row',

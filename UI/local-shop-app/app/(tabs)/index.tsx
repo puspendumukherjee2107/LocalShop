@@ -313,7 +313,7 @@ export default function HomeScreen() {
               />
             )
           ) : (
-            <SimpleCustomerScreen onLogout={handleLogout} />
+            <SimpleCustomerScreen />
           )
         )}
 
@@ -326,7 +326,7 @@ export default function HomeScreen() {
               }}
             />
           ) : (
-            <SimpleMerchantScreen shopName={merchantShop || 'Kirana Junction'} onLogout={handleLogout} />
+            <SimpleMerchantScreen shopName={merchantShop || 'Kirana Junction'} />
           )
         )}
 
