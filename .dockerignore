@@ -1,0 +1,11 @@
+.git
+.github
+.vs
+bin
+obj
+UI
+*.db
+*.db-shm
+*.db-wal
+LOCALSHOP_MASTER_DOCUMENTATION*
+generate_pdf.js
