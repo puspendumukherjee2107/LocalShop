@@ -52,7 +52,11 @@ interface OrderItem {
   deliveryOtp?: string;
 }
 
-export default function SimpleCustomerScreen() {
+interface SimpleCustomerScreenProps {
+  onLogout?: () => void;
+}
+
+export default function SimpleCustomerScreen({ onLogout }: SimpleCustomerScreenProps = {}) {
   const [activeTab, setActiveTab] = useState<'new_order' | 'my_orders'>('new_order');
 
   // Available Merchants
@@ -278,33 +282,41 @@ export default function SimpleCustomerScreen() {
     <View style={styles.container}>
       {/* Top Tab Bar */}
       <View style={styles.tabBar}>
-        <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'new_order' && styles.tabButtonActive]}
-          onPress={() => setActiveTab('new_order')}
-        >
-          <ShoppingBag size={18} color={activeTab === 'new_order' ? '#007AFF' : '#8E8E93'} />
-          <Text style={[styles.tabText, activeTab === 'new_order' && styles.tabTextActive]}>
-            New Order
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.tabGroup}>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === 'new_order' && styles.tabButtonActive]}
+            onPress={() => setActiveTab('new_order')}
+          >
+            <ShoppingBag size={18} color={activeTab === 'new_order' ? '#007AFF' : '#8E8E93'} />
+            <Text style={[styles.tabText, activeTab === 'new_order' && styles.tabTextActive]}>
+              New Order
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'my_orders' && styles.tabButtonActive]}
-          onPress={() => {
-            setActiveTab('my_orders');
-            loadMyOrders();
-          }}
-        >
-          <Clock size={18} color={activeTab === 'my_orders' ? '#007AFF' : '#8E8E93'} />
-          <Text style={[styles.tabText, activeTab === 'my_orders' && styles.tabTextActive]}>
-            My Orders
-          </Text>
-          {activeOrdersCount > 0 && (
-            <View style={styles.countBadge}>
-              <Text style={styles.countBadgeText}>{activeOrdersCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === 'my_orders' && styles.tabButtonActive]}
+            onPress={() => {
+              setActiveTab('my_orders');
+              loadMyOrders();
+            }}
+          >
+            <Clock size={18} color={activeTab === 'my_orders' ? '#007AFF' : '#8E8E93'} />
+            <Text style={[styles.tabText, activeTab === 'my_orders' && styles.tabTextActive]}>
+              My Orders
+            </Text>
+            {activeOrdersCount > 0 && (
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>{activeOrdersCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {onLogout && (
+          <TouchableOpacity style={styles.tabLogoutBtn} onPress={onLogout} activeOpacity={0.7}>
+            <Text style={styles.tabLogoutText}>🚪 Log Out</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* TAB 1: NEW ORDER */}
@@ -640,20 +652,40 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: '#FFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E5EA',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 6
+  },
+  tabGroup: {
+    flex: 1,
+    flexDirection: 'row',
+    marginRight: 8,
   },
   tabButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderRadius: 8,
-    marginHorizontal: 4
+    marginHorizontal: 3
+  },
+  tabLogoutBtn: {
+    backgroundColor: '#FEF2F2',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  tabLogoutText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#DC2626',
   },
   tabButtonActive: {
     backgroundColor: '#EFF6FF'

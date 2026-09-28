@@ -66,7 +66,11 @@ export default function HomeScreen() {
     setCustScreenState('login');
   };
 
-  const handleLogoutOrSwitchRole = () => {
+  const isLoggedIn = (mainRole === 'customer' && customerAuth) ||
+                     (mainRole === 'merchant' && merchantShop !== null) ||
+                     (mainRole === 'admin' && adminAuth);
+
+  const handleSwitchRole = () => {
     setMainRole(null);
     setCustomerAuth(false);
     setCurrentUser(null);
@@ -75,11 +79,32 @@ export default function HomeScreen() {
     setCustScreenState('login');
   };
 
+  const handleLogout = () => {
+    Alert.alert(
+      'Log Out',
+      'Are you sure you want to log out of your account?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Log Out',
+          style: 'destructive',
+          onPress: () => {
+            setCustomerAuth(false);
+            setCurrentUser(null);
+            setMerchantShop(null);
+            setAdminAuth(false);
+            setCustScreenState('login');
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
 
-      {/* Top Header */}
+      {/* Top Header with Safe Inset for Android Status Bar */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <View style={styles.brandRow}>
@@ -90,7 +115,7 @@ export default function HomeScreen() {
               <Text style={styles.headerTitle}>LocalShop</Text>
               <Text style={styles.headerSubtitle}>
                 {mainRole === 'customer'
-                  ? (customerAuth ? `Customer: ${currentUser?.name || 'Turja'}` : 'Customer Login')
+                  ? (customerAuth ? `Customer: ${currentUser?.name || 'Turja Mukherjee'}` : 'Customer Login')
                   : mainRole === 'merchant'
                   ? (merchantShop ? `Merchant: ${merchantShop}` : 'Merchant Portal')
                   : mainRole === 'admin'
@@ -100,13 +125,56 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          {mainRole !== null && (
-            <TouchableOpacity style={styles.switchRoleBtn} onPress={handleLogoutOrSwitchRole}>
-              <Text style={styles.switchRoleText}>← Switch Role</Text>
-            </TouchableOpacity>
-          )}
+          {/* Quick Server Health Badge */}
+          <TouchableOpacity
+            style={[styles.statusBadge, serverHealth === 'online' ? styles.statusBadgeOnline : styles.statusBadgeOffline]}
+            onPress={() => setShowConfigModal(true)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.statusBadgeText}>
+              {serverHealth === 'online' ? '🟢 Cloud' : '🔴 Server'}
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
+
+      {/* Sub-Header Action Bar (Prominent Role & Logout Controls) */}
+      {mainRole !== null && (
+        <View style={styles.subHeaderBar}>
+          <View style={styles.roleChip}>
+            <Text style={styles.roleChipEmoji}>
+              {mainRole === 'customer' ? '🛒' : mainRole === 'merchant' ? '🏪' : '🛡️'}
+            </Text>
+            <Text style={styles.roleChipText} numberOfLines={1}>
+              {mainRole === 'customer'
+                ? (customerAuth ? (currentUser?.name || 'Turja Mukherjee') : 'Customer')
+                : mainRole === 'merchant'
+                ? (merchantShop || 'Merchant')
+                : 'Admin'}
+            </Text>
+          </View>
+
+          <View style={styles.headerActionRow}>
+            <TouchableOpacity
+              style={styles.switchRoleBtn}
+              onPress={handleSwitchRole}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.switchRoleText}>🔄 Switch Role</Text>
+            </TouchableOpacity>
+
+            {isLoggedIn && (
+              <TouchableOpacity
+                style={styles.logoutBtn}
+                onPress={handleLogout}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.logoutText}>🚪 Log Out</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      )}
 
       {/* Main Body */}
       <View style={styles.content}>
@@ -245,7 +313,7 @@ export default function HomeScreen() {
               />
             )
           ) : (
-            <SimpleCustomerScreen />
+            <SimpleCustomerScreen onLogout={handleLogout} />
           )
         )}
 
@@ -258,7 +326,7 @@ export default function HomeScreen() {
               }}
             />
           ) : (
-            <SimpleMerchantScreen shopName={merchantShop || 'Kirana Junction'} />
+            <SimpleMerchantScreen shopName={merchantShop || 'Kirana Junction'} onLogout={handleLogout} />
           )
         )}
 
@@ -333,11 +401,11 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 10,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 28) + 10 : 14,
+    paddingBottom: 12,
     backgroundColor: '#FFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: '#E2E8F0',
   },
   headerRow: {
     flexDirection: 'row',
@@ -372,18 +440,76 @@ const styles = StyleSheet.create({
     color: '#64748B',
     fontWeight: '500',
   },
-  switchRoleBtn: {
-    backgroundColor: '#F1F5F9',
+  subHeaderBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  roleChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
     paddingHorizontal: 10,
     paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    maxWidth: '45%',
+  },
+  roleChipEmoji: {
+    fontSize: 14,
+    marginRight: 6,
+  },
+  roleChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1E40AF',
+  },
+  headerActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  switchRoleBtn: {
+    backgroundColor: '#FFF',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#CBD5E1',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   switchRoleText: {
     fontSize: 12,
     color: '#007AFF',
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  logoutBtn: {
+    backgroundColor: '#FEF2F2',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  logoutText: {
+    fontSize: 12,
+    color: '#DC2626',
+    fontWeight: '700',
   },
   content: {
     flex: 1,
