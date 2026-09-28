@@ -1,7 +1,9 @@
 import { Platform } from 'react-native';
 
-export const FIXED_CLOUD_API = 'https://localshop-puspendu-2026.loca.lt/api';
-export const FIXED_CLOUD_HUB = 'https://localshop-puspendu-2026.loca.lt/hubs/orders';
+export const GOOGLE_CLOUD_RUN_API = 'https://localshop-api-972000992560.asia-south1.run.app/api';
+export const GOOGLE_CLOUD_RUN_HUB = 'https://localshop-api-972000992560.asia-south1.run.app/hubs/orders';
+export const FIXED_CLOUD_API = GOOGLE_CLOUD_RUN_API;
+export const FIXED_CLOUD_HUB = GOOGLE_CLOUD_RUN_HUB;
 export const LOCAL_LAN_API = 'http://192.168.29.19:5000/api';
 export const LOCAL_LAN_HUB = 'http://192.168.29.19:5000/hubs/orders';
 

@@ -197,7 +197,7 @@ export default function HomeScreen() {
                     testHealth(newUrl);
                   }}
                 >
-                  <Text style={styles.serverMiniBtnText}>☁️ Cloud Tunnel</Text>
+                  <Text style={styles.serverMiniBtnText}>☁️ Google Cloud</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
