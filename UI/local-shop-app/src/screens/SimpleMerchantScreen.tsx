@@ -43,6 +43,7 @@ interface CatalogProduct {
   category: string;
   shopName: string;
   inStock: boolean;
+  isAvailable?: boolean;
 }
 
 interface OrderItemDetail {
@@ -129,7 +130,15 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
       const res = await fetch(`${BASE_URL}/products?shopName=${encodeURIComponent(shopName)}`);
       if (res.ok) {
         const data = await res.json();
-        setCatalogProducts(Array.isArray(data) ? data : data.value || []);
+        const rawList: any[] = Array.isArray(data) ? data : data.value || [];
+        setCatalogProducts(rawList.map(p => {
+          const avail = p.isAvailable !== undefined ? Boolean(p.isAvailable) : (p.inStock !== undefined ? Boolean(p.inStock) : true);
+          return {
+            ...p,
+            inStock: avail,
+            isAvailable: avail
+          };
+        }));
       }
     } catch {
       console.log('Error fetching store catalog');
@@ -161,7 +170,8 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
           price: priceNum,
           category: newProductCategory.trim() || 'Groceries',
           shopName: shopName || 'Tarama Stores',
-          inStock: newProductInStock
+          inStock: newProductInStock,
+          isAvailable: newProductInStock
         })
       });
 
@@ -185,18 +195,23 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
   };
 
   const handleToggleProductStock = async (productId: string, currentStock: boolean) => {
+    const nextStock = !currentStock;
     // Optimistically update
-    setCatalogProducts(prev => prev.map(p => p.id === productId ? { ...p, inStock: !currentStock } : p));
+    setCatalogProducts(prev => prev.map(p => p.id === productId ? { ...p, inStock: nextStock, isAvailable: nextStock } : p));
     try {
       const res = await fetch(`${BASE_URL}/products/toggle-stock/${productId}`, {
         method: 'PUT'
       });
       if (!res.ok) {
-        setCatalogProducts(prev => prev.map(p => p.id === productId ? { ...p, inStock: currentStock } : p));
+        setCatalogProducts(prev => prev.map(p => p.id === productId ? { ...p, inStock: currentStock, isAvailable: currentStock } : p));
         Alert.alert('Error', 'Failed to update stock status.');
+      } else {
+        const updated = await res.json();
+        const finalAvail = updated.isAvailable !== undefined ? Boolean(updated.isAvailable) : (updated.inStock !== undefined ? Boolean(updated.inStock) : nextStock);
+        setCatalogProducts(prev => prev.map(p => p.id === productId ? { ...p, inStock: finalAvail, isAvailable: finalAvail } : p));
       }
     } catch {
-      setCatalogProducts(prev => prev.map(p => p.id === productId ? { ...p, inStock: currentStock } : p));
+      setCatalogProducts(prev => prev.map(p => p.id === productId ? { ...p, inStock: currentStock, isAvailable: currentStock } : p));
       Alert.alert('Network Error', 'Cannot reach server.');
     }
   };
@@ -1424,7 +1439,9 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
               keyExtractor={item => item.id}
               contentContainerStyle={{ padding: 14, paddingBottom: 40 }}
               refreshControl={<RefreshControl refreshing={isLoadingCatalog} onRefresh={() => fetchCatalog(true)} />}
-              renderItem={({ item }) => (
+              renderItem={({ item }) => {
+                const isAvail = item.isAvailable !== undefined ? Boolean(item.isAvailable) : Boolean(item.inStock);
+                return (
                 <View style={styles.catalogCard}>
                   <View style={styles.catalogCardHeader}>
                     <View style={{ flex: 1, marginRight: 8 }}>
@@ -1433,10 +1450,10 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
                         <View style={styles.categoryBadge}>
                           <Text style={styles.categoryBadgeText}>{item.category || 'Groceries'}</Text>
                         </View>
-                        <View style={[styles.stockBadge, { backgroundColor: item.inStock ? '#E5F9ED' : '#FEE2E2' }]}>
-                          <View style={[styles.stockDot, { backgroundColor: item.inStock ? '#10B981' : '#EF4444' }]} />
-                          <Text style={[styles.stockBadgeText, { color: item.inStock ? '#047857' : '#B91C1C' }]}>
-                            {item.inStock ? 'In Stock' : 'Out of Stock'}
+                        <View style={[styles.stockBadge, { backgroundColor: isAvail ? '#E5F9ED' : '#FEE2E2' }]}>
+                          <View style={[styles.stockDot, { backgroundColor: isAvail ? '#10B981' : '#EF4444' }]} />
+                          <Text style={[styles.stockBadgeText, { color: isAvail ? '#047857' : '#B91C1C' }]}>
+                            {isAvail ? 'In Stock' : 'Out of Stock'}
                           </Text>
                         </View>
                       </View>
@@ -1454,12 +1471,12 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
                     <TouchableOpacity
                       style={[
                         styles.toggleStockBtn,
-                        item.inStock ? styles.toggleStockBtnOut : styles.toggleStockBtnIn
+                        isAvail ? styles.toggleStockBtnOut : styles.toggleStockBtnIn
                       ]}
-                      onPress={() => handleToggleProductStock(item.id, item.inStock)}
+                      onPress={() => handleToggleProductStock(item.id, isAvail)}
                     >
-                      <Text style={[styles.toggleStockText, { color: item.inStock ? '#DC2626' : '#059669' }]}>
-                        {item.inStock ? 'Mark Out of Stock 🔴' : 'Mark In Stock 🟢'}
+                      <Text style={[styles.toggleStockText, { color: isAvail ? '#DC2626' : '#059669' }]}>
+                        {isAvail ? 'Mark Out of Stock 🔴' : 'Mark In Stock 🟢'}
                       </Text>
                     </TouchableOpacity>
 
@@ -1471,7 +1488,8 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
                     </TouchableOpacity>
                   </View>
                 </View>
-              )}
+              );
+              }}
             />
           )}
         </View>

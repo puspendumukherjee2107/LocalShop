@@ -222,6 +222,11 @@ static void EnsureProductColumns(StoreDbContext db)
     {
         db.Database.ExecuteSqlRaw("ALTER TABLE \"Products\" ADD COLUMN \"ShopName\" TEXT NOT NULL DEFAULT 'Tarama Stores';");
     }
+
+    if (!columns.Contains("IsAvailable"))
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"Products\" ADD COLUMN \"IsAvailable\" INTEGER NOT NULL DEFAULT 1;");
+    }
 }
 
 static void EnsureStoreProfileColumns(StoreDbContext db)

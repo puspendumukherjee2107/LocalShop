@@ -68,6 +68,13 @@ class SignalRService {
     this.startConnection();
     return () => conn.off('StoreStatusUpdated', callback);
   }
+
+  public onProductUpdated(callback: (product: any) => void): () => void {
+    const conn = this.getConnection();
+    conn.on('ProductUpdated', callback);
+    this.startConnection();
+    return () => conn.off('ProductUpdated', callback);
+  }
 }
 
 export const signalRService = new SignalRService();

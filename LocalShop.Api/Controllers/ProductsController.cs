@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using LocalShop.Api.Data;
 using LocalShop.Api.Models;
+using LocalShop.Api.Hubs;
 
 namespace LocalShop.Api.Controllers;
 
@@ -12,10 +14,12 @@ namespace LocalShop.Api.Controllers;
 public class ProductsController : ControllerBase
 {
     private readonly StoreDbContext _context;
+    private readonly IHubContext<OrderHub> _hubContext;
 
-    public ProductsController(StoreDbContext context)
+    public ProductsController(StoreDbContext context, IHubContext<OrderHub> hubContext)
     {
         _context = context;
+        _hubContext = hubContext;
     }
 
     // GET: api/products (Fetch items with optional category, search, and shopName filtering)
@@ -81,6 +85,8 @@ public class ProductsController : ControllerBase
         _context.Products.Add(product);
         await _context.SaveChangesAsync();
 
+        await _hubContext.Clients.All.SendAsync("ProductUpdated", product);
+
         return CreatedAtAction(nameof(GetProducts), new { id = product.Id }, product);
     }
 
@@ -98,6 +104,8 @@ public class ProductsController : ControllerBase
         product.IsAvailable = updatedProduct.IsAvailable;
 
         await _context.SaveChangesAsync();
+        await _hubContext.Clients.All.SendAsync("ProductUpdated", product);
+
         return Ok(product);
     }
 
@@ -111,6 +119,8 @@ public class ProductsController : ControllerBase
         product.IsAvailable = !product.IsAvailable;
         await _context.SaveChangesAsync();
 
+        await _hubContext.Clients.All.SendAsync("ProductUpdated", product);
+
         return Ok(product);
     }
 
@@ -123,6 +133,8 @@ public class ProductsController : ControllerBase
 
         _context.Products.Remove(product);
         await _context.SaveChangesAsync();
+
+        await _hubContext.Clients.All.SendAsync("ProductDeleted", new { id = product.Id, shopName = product.ShopName });
 
         return Ok(new { message = $"Item '{product.Name}' removed from inventory." });
     }

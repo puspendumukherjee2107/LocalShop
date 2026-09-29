@@ -149,7 +149,7 @@ export default function SimpleCustomerScreen({ currentUser }: SimpleCustomerScre
   ];
 
   // Dynamic Merchant Catalog for Selected Store
-  const [storeProducts, setStoreProducts] = useState<Array<{ id: string; name: string; price: number; inStock: boolean; category?: string }>>([]);
+  const [storeProducts, setStoreProducts] = useState<Array<{ id: string; name: string; price: number; inStock?: boolean; isAvailable?: boolean; category?: string }>>([]);
 
   const fetchStoreProducts = useCallback(async (shop: string) => {
     if (!shop) return;
@@ -157,7 +157,15 @@ export default function SimpleCustomerScreen({ currentUser }: SimpleCustomerScre
       const res = await fetch(`${BASE_URL}/products?shopName=${encodeURIComponent(shop)}`);
       if (res.ok) {
         const data = await res.json();
-        setStoreProducts(Array.isArray(data) ? data : data.value || []);
+        const list: any[] = Array.isArray(data) ? data : data.value || [];
+        setStoreProducts(list.map(p => {
+          const avail = p.isAvailable !== undefined ? Boolean(p.isAvailable) : (p.inStock !== undefined ? Boolean(p.inStock) : true);
+          return {
+            ...p,
+            inStock: avail,
+            isAvailable: avail
+          };
+        }));
       }
     } catch {
       // quiet fallback
@@ -243,19 +251,29 @@ export default function SimpleCustomerScreen({ currentUser }: SimpleCustomerScre
       );
     });
 
+    const unsubProduct = signalRService.onProductUpdated(() => {
+      if (selectedStore?.shopName) {
+        fetchStoreProducts(selectedStore.shopName);
+      }
+    });
+
     // 2. High-Frequency Background Polling (Every 2.5 seconds)
     const interval = setInterval(() => {
       loadStores();
       loadMyOrders(false);
+      if (selectedStore?.shopName) {
+        fetchStoreProducts(selectedStore.shopName);
+      }
     }, 2500);
 
     return () => {
       unsubQuote();
       unsubStatus();
       unsubStore();
+      unsubProduct();
       clearInterval(interval);
     };
-  }, [loadStores, loadMyOrders]);
+  }, [loadStores, loadMyOrders, selectedStore?.shopName, fetchStoreProducts]);
 
   useEffect(() => {
     if (selectedStore?.shopName) {
@@ -592,17 +610,19 @@ export default function SimpleCustomerScreen({ currentUser }: SimpleCustomerScre
 
             {/* Quick Suggestions Chips (From Store Catalog or Default Groceries) */}
             <View style={styles.chipsContainer}>
-              {storeProducts.length > 0 ? (
-                storeProducts.filter(p => p.inStock).map((prod) => (
-                  <TouchableOpacity
-                    key={prod.id}
-                    style={styles.chip}
-                    onPress={() => handleAddSuggestion(`${prod.name} (₹${prod.price})`)}
-                  >
-                    <Plus size={12} color="#007AFF" />
-                    <Text style={styles.chipText}>{prod.name} • ₹{prod.price}</Text>
-                  </TouchableOpacity>
-                ))
+              {storeProducts.filter(p => (p.isAvailable !== undefined ? Boolean(p.isAvailable) : Boolean(p.inStock))).length > 0 ? (
+                storeProducts
+                  .filter(p => (p.isAvailable !== undefined ? Boolean(p.isAvailable) : Boolean(p.inStock)))
+                  .map((prod) => (
+                    <TouchableOpacity
+                      key={prod.id}
+                      style={styles.chip}
+                      onPress={() => handleAddSuggestion(`${prod.name} (₹${prod.price})`)}
+                    >
+                      <Plus size={12} color="#007AFF" />
+                      <Text style={styles.chipText}>{prod.name} • ₹{prod.price}</Text>
+                    </TouchableOpacity>
+                  ))
               ) : (
                 quickItems.map((item, index) => (
                   <TouchableOpacity

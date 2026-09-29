@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace LocalShop.Api.Models;
 
 public class Product
@@ -9,4 +11,11 @@ public class Product
     public int Stock { get; set; }
     public bool IsAvailable { get; set; } = true;
     public string ShopName { get; set; } = "Tarama Stores";
+
+    [NotMapped]
+    public bool InStock
+    {
+        get => IsAvailable;
+        set => IsAvailable = value;
+    }
 }
