@@ -2,7 +2,7 @@
   "expo": {
     "name": "local-shop-app",
     "slug": "local-shop-app",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "localshopapp",
@@ -12,7 +12,7 @@
     },
     "android": {
       "package": "com.localstore.app",
-      "versionCode": 7,
+      "versionCode": 8,
       "permissions": [
         "INTERNET"
       ],
