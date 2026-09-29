@@ -65,7 +65,20 @@ interface OrderItem {
   items?: OrderItemDetail[];
 }
 
-export default function SimpleCustomerScreen() {
+interface SimpleCustomerScreenProps {
+  currentUser?: {
+    id?: string;
+    name?: string;
+    Name?: string;
+    phone?: string;
+    Phone?: string;
+    address?: string;
+    Address?: string;
+    role?: string;
+  } | null;
+}
+
+export default function SimpleCustomerScreen({ currentUser }: SimpleCustomerScreenProps = {}) {
   const [activeTab, setActiveTab] = useState<'new_order' | 'my_orders'>('new_order');
 
   // Available Merchants
@@ -78,10 +91,29 @@ export default function SimpleCustomerScreen() {
 
   // Order Input State
   const [groceryText, setGroceryText] = useState('');
-  const [customerName, setCustomerName] = useState('Turja Mukherjee');
-  const [customerPhone, setCustomerPhone] = useState('9876543210');
-  const [deliveryAddress, setDeliveryAddress] = useState('Flat 4B, Greenfield Apartments');
+  const [customerName, setCustomerName] = useState(
+    currentUser?.name || (currentUser as any)?.Name || 'Prayaan Das'
+  );
+  const [customerPhone, setCustomerPhone] = useState(
+    currentUser?.phone || (currentUser as any)?.Phone || ''
+  );
+  const [deliveryAddress, setDeliveryAddress] = useState(
+    currentUser?.address || (currentUser as any)?.Address || ''
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Sync state if currentUser changes (e.g. login)
+  useEffect(() => {
+    if (currentUser) {
+      const name = currentUser.name || (currentUser as any)?.Name;
+      const phone = currentUser.phone || (currentUser as any)?.Phone;
+      const address = currentUser.address || (currentUser as any)?.Address;
+
+      if (name) setCustomerName(name);
+      if (phone) setCustomerPhone(phone);
+      if (address) setDeliveryAddress(address);
+    }
+  }, [currentUser]);
 
   // My Orders State
   const [myOrders, setMyOrders] = useState<OrderItem[]>([]);
@@ -123,11 +155,14 @@ export default function SimpleCustomerScreen() {
       const res = await fetch(`${BASE_URL}/orders`);
       if (res.ok) {
         const data: OrderItem[] = await res.json();
-        // Filter orders for this customer (or show all local orders for demo simplicity)
-        const relevant = data.filter(
-          o => !customerPhone || o.customerPhone === customerPhone || o.customerName === customerName
-        );
-        setMyOrders(relevant.length > 0 ? relevant : data);
+        // Filter orders for this customer if phone or name is present
+        const relevant = (customerPhone || customerName)
+          ? data.filter(
+              o => (customerPhone && o.customerPhone === customerPhone) ||
+                   (customerName && o.customerName && o.customerName.toLowerCase() === customerName.toLowerCase())
+            )
+          : data;
+        setMyOrders(relevant);
       }
     } catch {
       // quiet fallback in background poll

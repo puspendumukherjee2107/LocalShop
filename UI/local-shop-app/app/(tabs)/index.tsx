@@ -95,7 +95,7 @@ export default function HomeScreen() {
               <Text style={styles.headerTitle}>LocalShop</Text>
               <Text style={styles.headerSubtitle}>
                 {mainRole === 'customer'
-                  ? (customerAuth ? `Customer: ${currentUser?.name || 'Turja Mukherjee'}` : 'Customer Login')
+                  ? (customerAuth ? `Customer: ${currentUser?.name || 'Prayaan Das'}` : 'Customer Login')
                   : mainRole === 'merchant'
                   ? (merchantShop ? `Merchant: ${merchantShop}` : 'Merchant Portal')
                   : mainRole === 'admin'
@@ -127,7 +127,7 @@ export default function HomeScreen() {
             </Text>
             <Text style={styles.roleChipText} numberOfLines={1}>
               {mainRole === 'customer'
-                ? (customerAuth ? (currentUser?.name || 'Turja Mukherjee') : 'Customer')
+                ? (customerAuth ? (currentUser?.name || 'Prayaan Das') : 'Customer')
                 : mainRole === 'merchant'
                 ? (merchantShop || 'Merchant')
                 : 'Admin'}
@@ -293,7 +293,7 @@ export default function HomeScreen() {
               />
             )
           ) : (
-            <SimpleCustomerScreen />
+            <SimpleCustomerScreen currentUser={currentUser} />
           )
         )}
 
