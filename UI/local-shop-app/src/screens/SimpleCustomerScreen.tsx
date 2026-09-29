@@ -60,6 +60,7 @@ interface OrderItem {
   itemsCount: number;
   totalAmount: number;
   quotedAmount?: number;
+  discountAmount?: number;
   status: string;
   createdAt: string;
   deliveryOtp?: string;
@@ -183,7 +184,13 @@ export default function SimpleCustomerScreen({ currentUser }: SimpleCustomerScre
     const unsubQuote = signalRService.onPriceQuote((data) => {
       setMyOrders(prev => prev.map(o => 
         o.id === data.orderId 
-          ? { ...o, status: 'PriceQuoted', quotedAmount: data.quoteAmount, totalAmount: data.quoteAmount } 
+          ? { 
+              ...o, 
+              status: 'PriceQuoted', 
+              quotedAmount: data.quoteAmount, 
+              totalAmount: data.quoteAmount,
+              discountAmount: data.discountAmount ?? (data.order?.discountAmount || data.order?.DiscountAmount || 0)
+            } 
           : o
       ));
     });
@@ -774,6 +781,22 @@ export default function SimpleCustomerScreen({ currentUser }: SimpleCustomerScre
                             </View>
                           </View>
                         ))}
+                        {item.discountAmount && item.discountAmount > 0 ? (
+                          <View style={styles.customerDiscountSummary}>
+                            <View style={styles.customerDiscountSummaryRow}>
+                              <Text style={styles.customerDiscountSummaryLabel}>Items Subtotal:</Text>
+                              <Text style={styles.customerDiscountSummaryVal}>₹{(item.quotedAmount || item.totalAmount) + item.discountAmount}</Text>
+                            </View>
+                            <View style={styles.customerDiscountSummaryRow}>
+                              <Text style={[styles.customerDiscountSummaryLabel, { color: '#059669', fontWeight: '700' }]}>Store Discount:</Text>
+                              <Text style={[styles.customerDiscountSummaryVal, { color: '#059669', fontWeight: '700' }]}>- ₹{item.discountAmount}</Text>
+                            </View>
+                            <View style={[styles.customerDiscountSummaryRow, { marginTop: 4, paddingTop: 4, borderTopWidth: 1, borderTopColor: '#E5E7EB' }]}>
+                              <Text style={[styles.customerDiscountSummaryLabel, { fontWeight: '800', color: '#111827' }]}>Net Bill:</Text>
+                              <Text style={[styles.customerDiscountSummaryVal, { fontWeight: '800', color: '#059669' }]}>₹{item.quotedAmount || item.totalAmount}</Text>
+                            </View>
+                          </View>
+                        ) : null}
                       </View>
                     )}
 
@@ -843,9 +866,29 @@ export default function SimpleCustomerScreen({ currentUser }: SimpleCustomerScre
                           </View>
                         )}
 
-                        <Text style={styles.priceHighlight}>
-                          Total Calculated Bill: ₹{item.quotedAmount || item.totalAmount}
-                        </Text>
+                        {item.discountAmount && item.discountAmount > 0 ? (
+                          <View style={styles.customerDiscountCard}>
+                            <View style={styles.customerDiscountRow}>
+                              <Text style={styles.customerDiscountSubtotalText}>
+                                Items Total: <Text style={{ textDecorationLine: 'line-through', color: '#6B7280' }}>₹{(item.quotedAmount || item.totalAmount) + item.discountAmount}</Text>
+                              </Text>
+                              <View style={styles.customerDiscountBadge}>
+                                <Text style={styles.customerDiscountBadgeText}>🎉 -₹{item.discountAmount} OFF</Text>
+                              </View>
+                            </View>
+                            <View style={styles.customerFinalPayableRow}>
+                              <Text style={styles.customerFinalPayableLabel}>Net Amount Payable:</Text>
+                              <Text style={styles.customerFinalPayableAmount}>₹{item.quotedAmount || item.totalAmount}</Text>
+                            </View>
+                            <Text style={styles.customerSavingsNote}>
+                              You save ₹{item.discountAmount} on this order with store discount!
+                            </Text>
+                          </View>
+                        ) : (
+                          <Text style={styles.priceHighlight}>
+                            Total Calculated Bill: ₹{item.quotedAmount || item.totalAmount}
+                          </Text>
+                        )}
                         <Text style={styles.bannerDesc}>
                           The merchant has quoted the price for your grocery list. Please review and approve to confirm the order, or decline if you do not want it.
                         </Text>
@@ -891,7 +934,9 @@ export default function SimpleCustomerScreen({ currentUser }: SimpleCustomerScre
                         <View style={{ flex: 1, marginLeft: 8 }}>
                           <Text style={styles.bannerTitleApproved}>Order Approved (₹{item.totalAmount})</Text>
                           <Text style={styles.bannerDesc}>
-                            Your approval was received! The merchant is now packing your items.
+                            {item.discountAmount && item.discountAmount > 0
+                              ? `Your order was approved with ₹${item.discountAmount} store discount! The merchant is now packing your items.`
+                              : 'Your approval was received! The merchant is now packing your items.'}
                           </Text>
                         </View>
                       </View>
@@ -1618,5 +1663,81 @@ const styles = StyleSheet.create({
     borderColor: '#FEE2E2',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  customerDiscountCard: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1.5,
+    borderColor: '#A7F3D0',
+    borderRadius: 8,
+    padding: 10,
+    marginVertical: 8,
+  },
+  customerDiscountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  customerDiscountSubtotalText: {
+    fontSize: 12,
+    color: '#4B5563',
+    fontWeight: '600',
+  },
+  customerDiscountBadge: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  customerDiscountBadgeText: {
+    color: '#FFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  customerFinalPayableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#A7F3D0',
+  },
+  customerFinalPayableLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#065F46',
+  },
+  customerFinalPayableAmount: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#047857',
+  },
+  customerSavingsNote: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#059669',
+    marginTop: 4,
+    textAlign: 'right',
+  },
+  customerDiscountSummary: {
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  customerDiscountSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 2,
+  },
+  customerDiscountSummaryLabel: {
+    fontSize: 12,
+    color: '#4B5563',
+  },
+  customerDiscountSummaryVal: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#111827',
   }
 });

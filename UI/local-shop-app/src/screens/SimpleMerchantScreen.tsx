@@ -25,7 +25,8 @@ import {
   Send,
   XCircle,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  Percent
 } from 'lucide-react-native';
 import { BASE_URL } from '../services/apiConfig';
 import { signalRService } from '../services/signalRService';
@@ -49,6 +50,7 @@ interface OrderItem {
   itemsCount: number;
   totalAmount: number;
   quotedAmount?: number;
+  discountAmount?: number;
   status: string;
   createdAt: string;
   isDeletedByCustomer?: boolean;
@@ -75,6 +77,7 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
 
   // Quoting Calculator State per Order
   const [quoteInputs, setQuoteInputs] = useState<{ [orderId: string]: string }>({});
+  const [discountInputs, setDiscountInputs] = useState<{ [orderId: string]: string }>({});
   const [calcItems, setCalcItems] = useState<{ [orderId: string]: MerchantCalcItem[] }>({});
   const [processingOrderId, setProcessingOrderId] = useState<string | null>(null);
 
@@ -217,19 +220,40 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
     return [{ name: '', price: '', isAvailable: true }];
   }, [calcItems]);
 
-  const recalculateTotal = (orderId: string, items: MerchantCalcItem[]) => {
-    const total = items
+  const recalculateTotal = (orderId: string, items: MerchantCalcItem[], overrideDiscount?: string) => {
+    const subtotal = items
       .filter(item => item.isAvailable)
       .reduce((sum, item) => {
         const p = parseFloat(item.price);
         return sum + (isNaN(p) ? 0 : p);
       }, 0);
-    setQuoteInputs(prev => ({ ...prev, [orderId]: total > 0 ? total.toString() : '0' }));
-    return total;
+    const discountStr = overrideDiscount !== undefined ? overrideDiscount : (discountInputs[orderId] || '');
+    const disc = parseFloat(discountStr) || 0;
+    const finalTotal = Math.max(0, subtotal - disc);
+    setQuoteInputs(prev => ({
+      ...prev,
+      [orderId]: finalTotal > 0 ? finalTotal.toString() : (subtotal > 0 ? '0' : '')
+    }));
+    return { subtotal, discount: disc, finalTotal };
   };
 
   const handlePriceInputChange = (orderId: string, text: string) => {
     setQuoteInputs(prev => ({ ...prev, [orderId]: text }));
+  };
+
+  const handleDiscountInputChange = (order: OrderItem, text: string) => {
+    const clean = text.replace(/[^0-9.]/g, '');
+    setDiscountInputs(prev => ({ ...prev, [order.id]: clean }));
+    const items = getCalcItemsForOrder(order);
+    recalculateTotal(order.id, items, clean);
+  };
+
+  const handleApplyPresetDiscount = (order: OrderItem, presetVal: number) => {
+    const currentDiscount = parseFloat(discountInputs[order.id] || '0') || 0;
+    const newDiscount = currentDiscount === presetVal ? '' : presetVal.toString();
+    setDiscountInputs(prev => ({ ...prev, [order.id]: newDiscount }));
+    const items = getCalcItemsForOrder(order);
+    recalculateTotal(order.id, items, newDiscount);
   };
 
   const handleUpdateItemName = (order: OrderItem, index: number, name: string) => {
@@ -274,19 +298,21 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
     setCalcItems(prev => ({ ...prev, [order.id]: current }));
   };
 
-  // 1. Merchant Sends Price Quote with Itemized Details & Stock Status
+  // 1. Merchant Sends Price Quote with Itemized Details, Stock Status & Discount
   const handleSendQuote = async (order: OrderItem) => {
     const orderId = order.id;
     const currentItems = getCalcItemsForOrder(order);
     const validItems = currentItems.filter(i => i.name.trim().length > 0);
 
+    const discountVal = parseFloat(discountInputs[orderId] || '0') || 0;
     const rawVal = quoteInputs[orderId];
     let amount = parseFloat(rawVal || '0');
 
     if (isNaN(amount) || amount <= 0) {
-      amount = validItems
+      const subtotal = validItems
         .filter(i => i.isAvailable)
         .reduce((sum, i) => sum + (parseFloat(i.price) || 0), 0);
+      amount = Math.max(0, subtotal - discountVal);
     }
 
     if (isNaN(amount) || amount <= 0) {
@@ -308,12 +334,16 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           quotedAmount: amount,
+          discountAmount: discountVal,
           items: payloadItems
         })
       });
 
       if (res.ok) {
-        Alert.alert('Quote Dispatched! 🏷️', `Quote of ₹${amount} sent to customer with item breakdown.`);
+        Alert.alert(
+          'Quote Dispatched! 🏷️',
+          `Quote of ₹${amount}${discountVal > 0 ? ` (with ₹${discountVal} store discount)` : ''} sent to customer with item breakdown.`
+        );
         fetchOrders();
       } else {
         Alert.alert('Error', 'Failed to dispatch price quote.');
@@ -626,7 +656,9 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
             const autoTotal = orderCalcItems
               .filter(ci => ci.isAvailable)
               .reduce((sum, ci) => sum + (parseFloat(ci.price) || 0), 0);
-            const displayTotal = quoteInputs[item.id] !== undefined ? quoteInputs[item.id] : (autoTotal > 0 ? autoTotal.toString() : '');
+            const currentDiscount = parseFloat(discountInputs[item.id] || '0') || 0;
+            const netTotal = Math.max(0, autoTotal - currentDiscount);
+            const displayTotal = quoteInputs[item.id] !== undefined ? quoteInputs[item.id] : (netTotal > 0 ? netTotal.toString() : '');
 
             return (
               <View style={styles.orderCard}>
@@ -699,6 +731,22 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
                         </Text>
                       </View>
                     ))}
+                    {item.discountAmount && item.discountAmount > 0 ? (
+                      <View style={styles.itemizedDiscountSummary}>
+                        <View style={styles.itemizedSummaryRow}>
+                          <Text style={styles.itemizedSummaryLabel}>Subtotal:</Text>
+                          <Text style={styles.itemizedSummaryVal}>₹{(item.quotedAmount || item.totalAmount) + item.discountAmount}</Text>
+                        </View>
+                        <View style={styles.itemizedSummaryRow}>
+                          <Text style={[styles.itemizedSummaryLabel, { color: '#059669', fontWeight: '700' }]}>Store Discount:</Text>
+                          <Text style={[styles.itemizedSummaryVal, { color: '#059669', fontWeight: '700' }]}>- ₹{item.discountAmount}</Text>
+                        </View>
+                        <View style={[styles.itemizedSummaryRow, { marginTop: 4, paddingTop: 4, borderTopWidth: 1, borderTopColor: '#E5E7EB' }]}>
+                          <Text style={[styles.itemizedSummaryLabel, { fontWeight: '800', color: '#111827' }]}>Net Bill:</Text>
+                          <Text style={[styles.itemizedSummaryVal, { fontWeight: '800', color: '#059669' }]}>₹{item.quotedAmount || item.totalAmount}</Text>
+                        </View>
+                      </View>
+                    ) : null}
                   </View>
                 )}
 
@@ -801,14 +849,89 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
                       <Text style={styles.addCalcItemText}>+ Add Another Item Row</Text>
                     </TouchableOpacity>
 
-                    {/* Automatically Calculated Total Box */}
-                    <View style={styles.calcTotalSummaryBox}>
+                    {/* Items Subtotal Box */}
+                    <View style={styles.calcSubtotalSummaryBox}>
                       <View style={styles.calcTotalRow}>
                         <View>
-                          <Text style={styles.calcTotalLabel}>Total Calculated Bill:</Text>
+                          <Text style={styles.calcSubtotalLabel}>Items Subtotal:</Text>
                           <Text style={styles.calcTotalSub}>
                             {availCount} item{availCount !== 1 ? 's' : ''} available
                             {unavailCount > 0 ? ` • ${unavailCount} out of stock` : ''}
+                          </Text>
+                        </View>
+                        <Text style={styles.calcSubtotalAmount}>₹{autoTotal > 0 ? autoTotal : '0'}</Text>
+                      </View>
+                    </View>
+
+                    {/* Merchant Discount Section (Optional) */}
+                    <View style={styles.discountSectionBox}>
+                      <View style={styles.discountHeaderRow}>
+                        <Tag size={15} color="#059669" />
+                        <Text style={styles.discountSectionTitle}>Give Store Discount (Optional)</Text>
+                      </View>
+                      <Text style={styles.discountSectionSub}>
+                        Reward the customer with an instant discount off their grocery bill:
+                      </Text>
+
+                      {/* Quick Discount Preset Chips */}
+                      <View style={styles.discountChipsRow}>
+                        {[10, 20, 50, 100].map(val => {
+                          const isSelected = discountInputs[item.id] === val.toString();
+                          return (
+                            <TouchableOpacity
+                              key={val}
+                              style={[styles.discountChip, isSelected && styles.discountChipSelected]}
+                              onPress={() => handleApplyPresetDiscount(item, val)}
+                            >
+                              <Text style={[styles.discountChipText, isSelected && styles.discountChipTextSelected]}>
+                                ₹{val} OFF
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                        {parseFloat(discountInputs[item.id] || '0') > 0 && (
+                          <TouchableOpacity
+                            style={styles.discountChipClear}
+                            onPress={() => handleDiscountInputChange(item, '')}
+                          >
+                            <Text style={styles.discountChipClearText}>Clear</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+
+                      {/* Custom Discount Input */}
+                      <View style={styles.discountInputRow}>
+                        <Text style={styles.discountPrefix}>- ₹</Text>
+                        <TextInput
+                          style={styles.discountInput}
+                          placeholder="Custom discount amount (e.g. 25)"
+                          placeholderTextColor="#9CA3AF"
+                          keyboardType="numeric"
+                          value={discountInputs[item.id] || ''}
+                          onChangeText={txt => handleDiscountInputChange(item, txt)}
+                        />
+                      </View>
+                    </View>
+
+                    {/* Automatically Calculated Total Box with Discount Breakdown */}
+                    <View style={styles.calcTotalSummaryBox}>
+                      {parseFloat(discountInputs[item.id] || '0') > 0 && (
+                        <>
+                          <View style={styles.breakdownRow}>
+                            <Text style={styles.breakdownLabel}>Items Subtotal:</Text>
+                            <Text style={styles.breakdownVal}>₹{autoTotal}</Text>
+                          </View>
+                          <View style={styles.breakdownRow}>
+                            <Text style={[styles.breakdownLabel, { color: '#059669', fontWeight: '700' }]}>Special Store Discount:</Text>
+                            <Text style={[styles.breakdownVal, { color: '#059669', fontWeight: '700' }]}>- ₹{discountInputs[item.id]}</Text>
+                          </View>
+                        </>
+                      )}
+                      <View style={[styles.calcTotalRow, parseFloat(discountInputs[item.id] || '0') > 0 && { marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#FDE68A' }]}>
+                        <View>
+                          <Text style={styles.calcTotalLabel}>Final Total Bill:</Text>
+                          <Text style={styles.calcTotalSub}>
+                            {parseFloat(discountInputs[item.id] || '0') > 0 ? 'Net bill after store discount' : 'Customer payable amount'}
                           </Text>
                         </View>
                         <Text style={styles.calcTotalAmount}>₹{displayTotal || '0'}</Text>
@@ -1344,6 +1467,149 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#78350F',
     marginTop: 3,
+  },
+  calcSubtotalSummaryBox: {
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  calcSubtotalLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  calcSubtotalAmount: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  discountSectionBox: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 2,
+    marginBottom: 8,
+  },
+  discountHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  discountSectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#15803D',
+    marginLeft: 5,
+  },
+  discountSectionSub: {
+    fontSize: 11,
+    color: '#4B5563',
+    marginBottom: 8,
+  },
+  discountChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 8,
+    alignItems: 'center',
+  },
+  discountChip: {
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 6,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+  },
+  discountChipSelected: {
+    backgroundColor: '#16A34A',
+    borderColor: '#15803D',
+  },
+  discountChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#15803D',
+  },
+  discountChipTextSelected: {
+    color: '#FFF',
+  },
+  discountChipClear: {
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  discountChipClearText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#DC2626',
+  },
+  discountInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  discountPrefix: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#15803D',
+    marginRight: 4,
+  },
+  discountInput: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#111827',
+    padding: 0,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 2,
+  },
+  breakdownLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  breakdownVal: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  itemizedDiscountSummary: {
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  itemizedSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 2,
+  },
+  itemizedSummaryLabel: {
+    fontSize: 12,
+    color: '#4B5563',
+  },
+  itemizedSummaryVal: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#111827',
   },
   merchantItemizedCard: {
     backgroundColor: '#F9FAFB',

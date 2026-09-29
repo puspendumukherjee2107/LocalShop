@@ -41,7 +41,7 @@ class SignalRService {
     return () => conn.off('ReceiveNewOrder', callback);
   }
 
-  public onPriceQuote(callback: (data: { orderId: string; quoteAmount: number; order: any }) => void): () => void {
+  public onPriceQuote(callback: (data: { orderId: string; quoteAmount: number; discountAmount?: number; order: any }) => void): () => void {
     const conn = this.getConnection();
     conn.on('ReceivePriceQuote', callback);
     this.startConnection();

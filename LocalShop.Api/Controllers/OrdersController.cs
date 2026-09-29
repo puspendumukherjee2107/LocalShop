@@ -356,6 +356,7 @@ public class OrdersController : ControllerBase
             return BadRequest(new { message = "Quoted amount must be greater than zero." });
         }
 
+        order.DiscountAmount = Math.Max(0, request.DiscountAmount);
         order.QuotedAmount = request.QuotedAmount;
         order.TotalAmount = request.QuotedAmount;
         order.Status = "PriceQuoted";
@@ -396,7 +397,7 @@ public class OrdersController : ControllerBase
         await _context.SaveChangesAsync();
 
         // Broadcast to Real-Time SignalR Hub
-        await _hubContext.Clients.All.SendAsync("ReceivePriceQuote", new { orderId = order.Id, quoteAmount = order.QuotedAmount, order });
+        await _hubContext.Clients.All.SendAsync("ReceivePriceQuote", new { orderId = order.Id, quoteAmount = order.QuotedAmount, discountAmount = order.DiscountAmount, order });
         await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order });
 
         return Ok(order);
@@ -744,6 +745,7 @@ public class QuoteItemDto
 public class QuoteRequest
 {
     public decimal QuotedAmount { get; set; }
+    public decimal DiscountAmount { get; set; } = 0m;
     public List<QuoteItemDto>? Items { get; set; }
 }
 public record AcceptQuoteRequest(string? PaymentMethod);
