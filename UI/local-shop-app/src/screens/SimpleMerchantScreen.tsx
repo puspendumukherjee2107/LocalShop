@@ -9,7 +9,9 @@ import {
   Alert,
   ActivityIndicator,
   FlatList,
-  RefreshControl
+  RefreshControl,
+  Modal,
+  Switch
 } from 'react-native';
 import {
   Store,
@@ -26,10 +28,20 @@ import {
   XCircle,
   Trash2,
   AlertTriangle,
-  Percent
+  Percent,
+  Search
 } from 'lucide-react-native';
 import { BASE_URL } from '../services/apiConfig';
 import { signalRService } from '../services/signalRService';
+
+interface CatalogProduct {
+  id: string;
+  name: string;
+  price: number;
+  category: string;
+  shopName: string;
+  inStock: boolean;
+}
 
 interface OrderItemDetail {
   id?: string;
@@ -80,6 +92,130 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
   const [discountInputs, setDiscountInputs] = useState<{ [orderId: string]: string }>({});
   const [calcItems, setCalcItems] = useState<{ [orderId: string]: MerchantCalcItem[] }>({});
   const [processingOrderId, setProcessingOrderId] = useState<string | null>(null);
+
+  // Merchant Sub-View Switcher: 'orders' | 'catalog'
+  const [activeMerchantView, setActiveMerchantView] = useState<'orders' | 'catalog'>('orders');
+
+  // Product Catalog State
+  const [catalogProducts, setCatalogProducts] = useState<CatalogProduct[]>([]);
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
+  const [catalogSearch, setCatalogSearch] = useState('');
+  const [selectedCatalogCategory, setSelectedCatalogCategory] = useState<string>('All');
+
+  // Add Item to Sell Form State
+  const [showAddProductModal, setShowAddProductModal] = useState(false);
+  const [newProductName, setNewProductName] = useState('');
+  const [newProductPrice, setNewProductPrice] = useState('');
+  const [newProductCategory, setNewProductCategory] = useState('Groceries');
+  const [newProductInStock, setNewProductInStock] = useState(true);
+  const [isSavingProduct, setIsSavingProduct] = useState(false);
+
+  const fetchCatalog = useCallback(async (showLoading = true) => {
+    if (showLoading) setIsLoadingCatalog(true);
+    try {
+      const res = await fetch(`${BASE_URL}/products?shopName=${encodeURIComponent(shopName)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCatalogProducts(Array.isArray(data) ? data : data.value || []);
+      }
+    } catch {
+      console.log('Error fetching store catalog');
+    } finally {
+      if (showLoading) setIsLoadingCatalog(false);
+    }
+  }, [shopName]);
+
+  const handleAddProduct = async () => {
+    const cleanName = newProductName.trim();
+    if (!cleanName) {
+      Alert.alert('Missing Name', 'Please enter the item name (e.g. Fortune Oil 1L).');
+      return;
+    }
+
+    const priceNum = parseFloat(newProductPrice.trim());
+    if (isNaN(priceNum) || priceNum <= 0) {
+      Alert.alert('Invalid Price', 'Please enter a valid selling price greater than 0.');
+      return;
+    }
+
+    setIsSavingProduct(true);
+    try {
+      const res = await fetch(`${BASE_URL}/products`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: cleanName,
+          price: priceNum,
+          category: newProductCategory.trim() || 'Groceries',
+          shopName: shopName || 'Tarama Stores',
+          inStock: newProductInStock
+        })
+      });
+
+      if (res.ok) {
+        Alert.alert('Item Added to Store! 🎉', `"${cleanName}" (₹${priceNum}) is now listed in your selling catalog.`);
+        setNewProductName('');
+        setNewProductPrice('');
+        setNewProductCategory('Groceries');
+        setNewProductInStock(true);
+        setShowAddProductModal(false);
+        fetchCatalog(false);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        Alert.alert('Error', err.message || 'Failed to add item to catalog.');
+      }
+    } catch {
+      Alert.alert('Network Error', 'Cannot reach API server.');
+    } finally {
+      setIsSavingProduct(false);
+    }
+  };
+
+  const handleToggleProductStock = async (productId: string, currentStock: boolean) => {
+    // Optimistically update
+    setCatalogProducts(prev => prev.map(p => p.id === productId ? { ...p, inStock: !currentStock } : p));
+    try {
+      const res = await fetch(`${BASE_URL}/products/toggle-stock/${productId}`, {
+        method: 'PUT'
+      });
+      if (!res.ok) {
+        setCatalogProducts(prev => prev.map(p => p.id === productId ? { ...p, inStock: currentStock } : p));
+        Alert.alert('Error', 'Failed to update stock status.');
+      }
+    } catch {
+      setCatalogProducts(prev => prev.map(p => p.id === productId ? { ...p, inStock: currentStock } : p));
+      Alert.alert('Network Error', 'Cannot reach server.');
+    }
+  };
+
+  const handleDeleteProduct = (productId: string, productName: string) => {
+    Alert.alert(
+      'Remove from Catalog? 🗑️',
+      `Are you sure you want to stop selling "${productName}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            setCatalogProducts(prev => prev.filter(p => p.id !== productId));
+            try {
+              const res = await fetch(`${BASE_URL}/products/${productId}`, {
+                method: 'DELETE'
+              });
+              if (!res.ok) {
+                fetchCatalog(false);
+                Alert.alert('Error', 'Failed to remove product from server.');
+              }
+            } catch {
+              fetchCatalog(false);
+              Alert.alert('Network Error', 'Cannot reach server.');
+            }
+          }
+        }
+      ]
+    );
+  };
 
   const fetchStoreProfile = useCallback(async () => {
     try {
@@ -178,6 +314,8 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
       }
     });
 
+    fetchCatalog(true);
+
     // 2. High-Frequency Background Polling (Every 2.5 seconds)
     const interval = setInterval(() => {
       fetchOrders(false);
@@ -191,7 +329,7 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
       unsubStore();
       clearInterval(interval);
     };
-  }, [shopName, fetchOrders, fetchStoreProfile]);
+  }, [shopName, fetchOrders, fetchStoreProfile, fetchCatalog]);
 
   // Price Calculator Helpers with Item-Level Pricing & Stock Availability
   const getCalcItemsForOrder = useCallback((order: OrderItem): MerchantCalcItem[] => {
@@ -527,6 +665,16 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
     o => o.status === 'Approved' || o.status === 'Processing'
   ).length;
 
+  const filteredCatalog = catalogProducts.filter(p => {
+    const query = catalogSearch.trim().toLowerCase();
+    const matchesSearch = !query ||
+      p.name.toLowerCase().includes(query) ||
+      (p.category && p.category.toLowerCase().includes(query));
+    const matchesCategory = selectedCatalogCategory === 'All' ||
+      (p.category && p.category.toLowerCase() === selectedCatalogCategory.toLowerCase());
+    return matchesSearch && matchesCategory;
+  });
+
   return (
     <View style={styles.container}>
       {/* Merchant Header */}
@@ -544,6 +692,7 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
           onPress={() => {
             fetchOrders();
             fetchStoreProfile();
+            fetchCatalog();
           }}
           disabled={isLoading}
         >
@@ -552,8 +701,37 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
         </TouchableOpacity>
       </View>
 
-      {/* Store Open / Closed Status & Toggle Control Banner */}
-      <View style={[styles.storeStatusBar, isOpen ? styles.statusBarOpen : styles.statusBarClosed]}>
+      {/* Top Navigation Switcher Bar: Orders vs Selling Catalog */}
+      <View style={styles.topSwitcherBar}>
+        <TouchableOpacity
+          style={[styles.topSwitcherTab, activeMerchantView === 'orders' && styles.topSwitcherTabActive]}
+          onPress={() => setActiveMerchantView('orders')}
+        >
+          <Package size={16} color={activeMerchantView === 'orders' ? '#007AFF' : '#6B7280'} />
+          <Text style={[styles.topSwitcherText, activeMerchantView === 'orders' && styles.topSwitcherTextActive]}>
+            Customer Orders ({orders.length})
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.topSwitcherTab, activeMerchantView === 'catalog' && styles.topSwitcherTabActive]}
+          onPress={() => {
+            setActiveMerchantView('catalog');
+            fetchCatalog(true);
+          }}
+        >
+          <Tag size={16} color={activeMerchantView === 'catalog' ? '#007AFF' : '#6B7280'} />
+          <Text style={[styles.topSwitcherText, activeMerchantView === 'catalog' && styles.topSwitcherTextActive]}>
+            Items to Sell ({catalogProducts.length})
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* 1. ORDERS VIEW */}
+      {activeMerchantView === 'orders' && (
+        <View style={{ flex: 1 }}>
+          {/* Store Open / Closed Status & Toggle Control Banner */}
+          <View style={[styles.storeStatusBar, isOpen ? styles.statusBarOpen : styles.statusBarClosed]}>
         <View style={{ flex: 1, marginRight: 10 }}>
           <View style={styles.statusDotRow}>
             <View style={[styles.pulseDot, { backgroundColor: isOpen ? '#10B981' : '#EF4444' }]} />
@@ -1125,6 +1303,246 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
           }}
         />
       )}
+        </View>
+      )}
+
+      {/* 2. SELLING CATALOG VIEW */}
+      {activeMerchantView === 'catalog' && (
+        <View style={{ flex: 1 }}>
+          {/* Catalog Header Banner with Add Button */}
+          <View style={styles.catalogHeaderBanner}>
+            <View style={{ flex: 1, marginRight: 10 }}>
+              <Text style={styles.catalogBannerTitle}>Store Selling Items ({filteredCatalog.length})</Text>
+              <Text style={styles.catalogBannerSub}>
+                Items added here are visible to customers ordering from {shopName}.
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.addNewItemBtn}
+              onPress={() => setShowAddProductModal(true)}
+            >
+              <Plus size={16} color="#FFF" />
+              <Text style={styles.addNewItemBtnText}>Add Item</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Search Bar */}
+          <View style={styles.catalogSearchBar}>
+            <Search size={16} color="#8E8E93" />
+            <TextInput
+              style={styles.catalogSearchInput}
+              placeholder="Search items by name or category..."
+              placeholderTextColor="#8E8E93"
+              value={catalogSearch}
+              onChangeText={setCatalogSearch}
+            />
+            {catalogSearch.length > 0 && (
+              <TouchableOpacity onPress={() => setCatalogSearch('')}>
+                <XCircle size={16} color="#8E8E93" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Category Filter Chips */}
+          <View style={{ height: 44, marginVertical: 6 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
+              {['All', 'Groceries', 'Dairy', 'Beverages', 'Snacks', 'Bakery', 'Household', 'Personal Care', 'Fruits & Veg', 'Other'].map(cat => (
+                <TouchableOpacity
+                  key={cat}
+                  style={[styles.categoryChip, selectedCatalogCategory === cat && styles.categoryChipActive]}
+                  onPress={() => setSelectedCatalogCategory(cat)}
+                >
+                  <Text style={[styles.categoryChipText, selectedCatalogCategory === cat && styles.categoryChipTextActive]}>
+                    {cat}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Catalog Items List */}
+          {isLoadingCatalog ? (
+            <View style={styles.centerBox}>
+              <ActivityIndicator size="large" color="#007AFF" />
+              <Text style={styles.loadingText}>Loading selling items...</Text>
+            </View>
+          ) : filteredCatalog.length === 0 ? (
+            <View style={styles.emptyBox}>
+              <Tag size={44} color="#C7C7CC" />
+              <Text style={styles.emptyTitle}>
+                {catalogProducts.length === 0 ? 'No Selling Items Added Yet' : 'No Items Found'}
+              </Text>
+              <Text style={styles.emptySub}>
+                {catalogProducts.length === 0
+                  ? 'Add the items and groceries you sell so customers can select them and see their prices.'
+                  : 'No items match your search or filter.'}
+              </Text>
+              {catalogProducts.length === 0 && (
+                <TouchableOpacity
+                  style={[styles.addNewItemBtn, { marginTop: 14 }]}
+                  onPress={() => setShowAddProductModal(true)}
+                >
+                  <Plus size={16} color="#FFF" />
+                  <Text style={styles.addNewItemBtnText}>Add Your First Item</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : (
+            <FlatList
+              data={filteredCatalog}
+              keyExtractor={item => item.id}
+              contentContainerStyle={{ padding: 14, paddingBottom: 40 }}
+              refreshControl={<RefreshControl refreshing={isLoadingCatalog} onRefresh={() => fetchCatalog(true)} />}
+              renderItem={({ item }) => (
+                <View style={styles.catalogCard}>
+                  <View style={styles.catalogCardHeader}>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <Text style={styles.catalogItemName}>{item.name}</Text>
+                      <View style={styles.catalogMetaRow}>
+                        <View style={styles.categoryBadge}>
+                          <Text style={styles.categoryBadgeText}>{item.category || 'Groceries'}</Text>
+                        </View>
+                        <View style={[styles.stockBadge, { backgroundColor: item.inStock ? '#E5F9ED' : '#FEE2E2' }]}>
+                          <View style={[styles.stockDot, { backgroundColor: item.inStock ? '#10B981' : '#EF4444' }]} />
+                          <Text style={[styles.stockBadgeText, { color: item.inStock ? '#047857' : '#B91C1C' }]}>
+                            {item.inStock ? 'In Stock' : 'Out of Stock'}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Price Tag */}
+                    <View style={styles.catalogPriceTag}>
+                      <IndianRupee size={15} color="#007AFF" />
+                      <Text style={styles.catalogPriceValue}>{item.price.toFixed(2)}</Text>
+                    </View>
+                  </View>
+
+                  {/* Actions */}
+                  <View style={styles.catalogCardActions}>
+                    <TouchableOpacity
+                      style={[
+                        styles.toggleStockBtn,
+                        item.inStock ? styles.toggleStockBtnOut : styles.toggleStockBtnIn
+                      ]}
+                      onPress={() => handleToggleProductStock(item.id, item.inStock)}
+                    >
+                      <Text style={[styles.toggleStockText, { color: item.inStock ? '#DC2626' : '#059669' }]}>
+                        {item.inStock ? 'Mark Out of Stock 🔴' : 'Mark In Stock 🟢'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.deleteProductBtn}
+                      onPress={() => handleDeleteProduct(item.id, item.name)}
+                    >
+                      <Trash2 size={16} color="#DC2626" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            />
+          )}
+        </View>
+      )}
+
+      {/* Modal: Add New Item to Sell */}
+      <Modal
+        visible={showAddProductModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAddProductModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.addProductModalContent}>
+            <View style={styles.addProductModalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Tag size={20} color="#007AFF" />
+                <Text style={styles.addProductModalTitle}>Add Item to Sell</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowAddProductModal(false)}>
+                <XCircle size={22} color="#8E8E93" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.formLabel}>Item / Product Name *</Text>
+              <TextInput
+                style={styles.formInput}
+                placeholder="e.g. Fortune Mustard Oil (1L)"
+                placeholderTextColor="#9CA3AF"
+                value={newProductName}
+                onChangeText={setNewProductName}
+              />
+
+              <Text style={styles.formLabel}>Selling Price (₹) *</Text>
+              <View style={styles.priceInputWrapper}>
+                <IndianRupee size={16} color="#374151" />
+                <TextInput
+                  style={styles.formPriceInput}
+                  placeholder="e.g. 175"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="numeric"
+                  value={newProductPrice}
+                  onChangeText={setNewProductPrice}
+                />
+              </View>
+
+              <Text style={styles.formLabel}>Category</Text>
+              <View style={styles.categoryChipsWrap}>
+                {['Groceries', 'Dairy', 'Beverages', 'Snacks', 'Bakery', 'Household', 'Personal Care', 'Fruits & Veg', 'Other'].map(cat => (
+                  <TouchableOpacity
+                    key={cat}
+                    style={[styles.modalCatChip, newProductCategory === cat && styles.modalCatChipActive]}
+                    onPress={() => setNewProductCategory(cat)}
+                  >
+                    <Text style={[styles.modalCatChipText, newProductCategory === cat && styles.modalCatChipTextActive]}>
+                      {cat}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={styles.stockSwitchRow}>
+                <View>
+                  <Text style={styles.stockSwitchLabel}>Available in Stock</Text>
+                  <Text style={styles.stockSwitchSub}>Customers can order this immediately</Text>
+                </View>
+                <Switch
+                  value={newProductInStock}
+                  onValueChange={setNewProductInStock}
+                  trackColor={{ true: '#10B981', false: '#D1D5DB' }}
+                />
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setShowAddProductModal(false)}
+                disabled={isSavingProduct}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalSaveBtn}
+                onPress={handleAddProduct}
+                disabled={isSavingProduct}
+              >
+                {isSavingProduct ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <>
+                    <Plus size={16} color="#FFF" />
+                    <Text style={styles.modalSaveText}>Add to Catalog</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1926,5 +2344,354 @@ const styles = StyleSheet.create({
     borderColor: '#FEE2E2',
     alignItems: 'center',
     justifyContent: 'center'
+  },
+  topSwitcherBar: {
+    flexDirection: 'row',
+    backgroundColor: '#FFF',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5EA',
+    gap: 10
+  },
+  topSwitcherTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 9,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6'
+  },
+  topSwitcherTabActive: {
+    backgroundColor: '#EBF5FF',
+    borderWidth: 1,
+    borderColor: '#93C5FD'
+  },
+  topSwitcherText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#4B5563'
+  },
+  topSwitcherTextActive: {
+    color: '#007AFF',
+    fontWeight: '700'
+  },
+  catalogHeaderBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFF',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5EA'
+  },
+  catalogBannerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827'
+  },
+  catalogBannerSub: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2
+  },
+  addNewItemBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#10B981',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8
+  },
+  addNewItemBtnText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '700'
+  },
+  catalogSearchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    marginHorizontal: 14,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E5EA'
+  },
+  catalogSearchInput: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    fontSize: 13,
+    color: '#111827'
+  },
+  categoryScroll: {
+    paddingHorizontal: 14,
+    gap: 8,
+    alignItems: 'center'
+  },
+  categoryChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: '#E5E7EB'
+  },
+  categoryChipActive: {
+    backgroundColor: '#007AFF'
+  },
+  categoryChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4B5563'
+  },
+  categoryChipTextActive: {
+    color: '#FFF'
+  },
+  catalogCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E5E5EA'
+  },
+  catalogCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start'
+  },
+  catalogItemName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827'
+  },
+  catalogMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6
+  },
+  categoryBadge: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4
+  },
+  categoryBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#4B5563'
+  },
+  stockBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4
+  },
+  stockDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3
+  },
+  stockBadgeText: {
+    fontSize: 11,
+    fontWeight: '700'
+  },
+  catalogPriceTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE'
+  },
+  catalogPriceValue: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#007AFF',
+    marginLeft: 2
+  },
+  catalogCardActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+    paddingTop: 10
+  },
+  toggleStockBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1
+  },
+  toggleStockBtnIn: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0'
+  },
+  toggleStockBtnOut: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA'
+  },
+  toggleStockText: {
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  deleteProductBtn: {
+    padding: 6,
+    borderRadius: 6,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FECACA'
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20
+  },
+  addProductModalContent: {
+    width: '100%',
+    maxWidth: 440,
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 20,
+    maxHeight: '85%'
+  },
+  addProductModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16
+  },
+  addProductModalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#111827'
+  },
+  formLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+    marginTop: 12,
+    marginBottom: 6
+  },
+  formInput: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 14,
+    color: '#111827'
+  },
+  priceInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 10
+  },
+  formPriceInput: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingLeft: 6,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827'
+  },
+  categoryChipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6
+  },
+  modalCatChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB'
+  },
+  modalCatChipActive: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF'
+  },
+  modalCatChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4B5563'
+  },
+  modalCatChipTextActive: {
+    color: '#FFF'
+  },
+  stockSwitchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+    marginBottom: 10,
+    backgroundColor: '#F9FAFB',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB'
+  },
+  stockSwitchLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#111827'
+  },
+  stockSwitchSub: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 2
+  },
+  modalBtnRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 18
+  },
+  modalCancelBtn: {
+    flex: 1,
+    height: 42,
+    borderRadius: 8,
+    backgroundColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  modalCancelText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151'
+  },
+  modalSaveBtn: {
+    flex: 1.5,
+    height: 42,
+    borderRadius: 8,
+    backgroundColor: '#10B981',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6
+  },
+  modalSaveText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFF'
   }
 });

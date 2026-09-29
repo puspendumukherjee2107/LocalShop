@@ -95,6 +95,8 @@ try
         EnsureUserSecurityColumns(db);
         EnsureOrderItemColumns(db);
         EnsureOrderColumns(db);
+        EnsureProductColumns(db);
+        EnsureStoreProfileColumns(db);
     }
     catch (Exception ex)
     {
@@ -193,6 +195,61 @@ static void EnsureOrderColumns(StoreDbContext db)
     if (!columns.Contains("IsDeletedByMerchant"))
     {
         db.Database.ExecuteSqlRaw("ALTER TABLE \"Orders\" ADD COLUMN \"IsDeletedByMerchant\" INTEGER NOT NULL DEFAULT 0;");
+    }
+}
+
+static void EnsureProductColumns(StoreDbContext db)
+{
+    var connection = db.Database.GetDbConnection();
+    if (connection.State != System.Data.ConnectionState.Open)
+    {
+        connection.Open();
+    }
+
+    using var command = connection.CreateCommand();
+    command.CommandText = "PRAGMA table_info('Products');";
+
+    var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    using var reader = command.ExecuteReader();
+    while (reader.Read())
+    {
+        var columnName = reader.GetString(1);
+        columns.Add(columnName);
+    }
+
+    if (!columns.Contains("ShopName"))
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"Products\" ADD COLUMN \"ShopName\" TEXT NOT NULL DEFAULT 'Tarama Stores';");
+    }
+}
+
+static void EnsureStoreProfileColumns(StoreDbContext db)
+{
+    var connection = db.Database.GetDbConnection();
+    if (connection.State != System.Data.ConnectionState.Open)
+    {
+        connection.Open();
+    }
+
+    using var command = connection.CreateCommand();
+    command.CommandText = "PRAGMA table_info('StoreProfiles');";
+
+    var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    using var reader = command.ExecuteReader();
+    while (reader.Read())
+    {
+        var columnName = reader.GetString(1);
+        columns.Add(columnName);
+    }
+
+    if (!columns.Contains("Phone"))
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"StoreProfiles\" ADD COLUMN \"Phone\" TEXT NULL;");
+    }
+
+    if (!columns.Contains("OwnerName"))
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"StoreProfiles\" ADD COLUMN \"OwnerName\" TEXT NULL;");
     }
 }
 

@@ -8,4 +8,5 @@ public class Product
     public string Category { get; set; } = "General";
     public int Stock { get; set; }
     public bool IsAvailable { get; set; } = true;
+    public string ShopName { get; set; } = "Tarama Stores";
 }

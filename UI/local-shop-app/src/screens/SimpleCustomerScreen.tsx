@@ -137,6 +137,22 @@ export default function SimpleCustomerScreen({ currentUser }: SimpleCustomerScre
     'Tea (250g)'
   ];
 
+  // Dynamic Merchant Catalog for Selected Store
+  const [storeProducts, setStoreProducts] = useState<Array<{ id: string; name: string; price: number; inStock: boolean; category?: string }>>([]);
+
+  const fetchStoreProducts = useCallback(async (shop: string) => {
+    if (!shop) return;
+    try {
+      const res = await fetch(`${BASE_URL}/products?shopName=${encodeURIComponent(shop)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setStoreProducts(Array.isArray(data) ? data : data.value || []);
+      }
+    } catch {
+      // quiet fallback
+    }
+  }, []);
+
   const loadStores = useCallback(async () => {
     try {
       const res = await fetch(`${BASE_URL}/stores`);
@@ -229,6 +245,12 @@ export default function SimpleCustomerScreen({ currentUser }: SimpleCustomerScre
       clearInterval(interval);
     };
   }, [loadStores, loadMyOrders]);
+
+  useEffect(() => {
+    if (selectedStore?.shopName) {
+      fetchStoreProducts(selectedStore.shopName);
+    }
+  }, [selectedStore?.shopName, fetchStoreProducts]);
 
   const handleAddSuggestion = (item: string) => {
     const line = `• ${item}`;
@@ -557,18 +579,31 @@ export default function SimpleCustomerScreen({ currentUser }: SimpleCustomerScre
               Tap quick items below or type your custom grocery list:
             </Text>
 
-            {/* Quick Suggestions Chips */}
+            {/* Quick Suggestions Chips (From Store Catalog or Default Groceries) */}
             <View style={styles.chipsContainer}>
-              {quickItems.map((item, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={styles.chip}
-                  onPress={() => handleAddSuggestion(item)}
-                >
-                  <Plus size={12} color="#007AFF" />
-                  <Text style={styles.chipText}>{item}</Text>
-                </TouchableOpacity>
-              ))}
+              {storeProducts.length > 0 ? (
+                storeProducts.filter(p => p.inStock).map((prod) => (
+                  <TouchableOpacity
+                    key={prod.id}
+                    style={styles.chip}
+                    onPress={() => handleAddSuggestion(`${prod.name} (₹${prod.price})`)}
+                  >
+                    <Plus size={12} color="#007AFF" />
+                    <Text style={styles.chipText}>{prod.name} • ₹{prod.price}</Text>
+                  </TouchableOpacity>
+                ))
+              ) : (
+                quickItems.map((item, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.chip}
+                    onPress={() => handleAddSuggestion(item)}
+                  >
+                    <Plus size={12} color="#007AFF" />
+                    <Text style={styles.chipText}>{item}</Text>
+                  </TouchableOpacity>
+                ))
+              )}
             </View>
 
             {/* Multi-line Grocery Input */}

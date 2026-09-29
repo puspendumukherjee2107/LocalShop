@@ -1,6 +1,6 @@
-import { CheckCircle2, FileSpreadsheet, Settings, XCircle } from 'lucide-react-native';
+import { CheckCircle2, FileSpreadsheet, Settings, XCircle, KeyRound, Phone, Eye, EyeOff, UserCheck } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, FlatList, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import { BASE_URL } from '../services/apiConfig';
 
 type AdminSubTab = 'approvals' | 'customers' | 'reports' | 'logs' | 'config';
@@ -12,6 +12,9 @@ interface MerchantRecord {
   tradeLicense: string;
   kycStatus: string;
   isOpen: boolean;
+  phone?: string;
+  ownerName?: string;
+  status?: string;
 }
 
 interface CustomerRecord {
@@ -53,6 +56,64 @@ export default function AdminDashboardScreen() {
   // System Configurations
   const [platformFee, setPlatformFee] = useState('2.5');
   const [maintenanceMode, setMaintenanceMode] = useState(false);
+
+  // Admin Password Reset State
+  const [resetModalVisible, setResetModalVisible] = useState(false);
+  const [resetTargetUser, setResetTargetUser] = useState<{
+    id?: string;
+    name: string;
+    phone: string;
+    role: 'Merchant' | 'Customer';
+  } | null>(null);
+  const [adminNewPassword, setAdminNewPassword] = useState('Temp@2026');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+
+  const openResetModal = (target: { id?: string; name: string; phone: string; role: 'Merchant' | 'Customer' }) => {
+    setResetTargetUser(target);
+    setAdminNewPassword('Temp@2026');
+    setShowPassword(false);
+    setResetModalVisible(true);
+  };
+
+  const handleConfirmPasswordReset = async () => {
+    if (!resetTargetUser || !resetTargetUser.phone) {
+      Alert.alert('Error', 'Missing mobile number for password reset.');
+      return;
+    }
+    if (!adminNewPassword || adminNewPassword.trim().length < 8) {
+      Alert.alert('Validation Error', 'Password must be at least 8 characters long.');
+      return;
+    }
+
+    setIsResettingPassword(true);
+    try {
+      const res = await fetch(`${BASE_URL}/admin/reset-user-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: resetTargetUser.phone.trim(),
+          newPassword: adminNewPassword.trim(),
+          role: resetTargetUser.role
+        })
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        Alert.alert(
+          'Password Reset Done! 🔑',
+          `Password for ${resetTargetUser.role} "${resetTargetUser.name}" (${resetTargetUser.phone}) is now updated.\n\nNew Password: ${adminNewPassword.trim()}\n\nYou can inform the user to log in with this password.`
+        );
+        setResetModalVisible(false);
+      } else {
+        Alert.alert('Reset Failed', data.message || 'Server rejected password reset.');
+      }
+    } catch {
+      Alert.alert('Network Error', 'Cannot reach API server.');
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
 
   const loadTabContent = useCallback(async () => {
     setLoading(true);
@@ -198,14 +259,27 @@ export default function AdminDashboardScreen() {
                     </Text>
                   </View>
                 </View>
+
+                {/* Prominently Displayed Merchant Phone & Owner */}
+                <View style={styles.merchantMetaRow}>
+                  <View style={styles.phoneBadge}>
+                    <Phone size={13} color="#FF9500" />
+                    <Text style={styles.phoneBadgeText}>Mobile: {item.phone || '9876500000'}</Text>
+                  </View>
+                  {item.ownerName ? (
+                    <Text style={styles.ownerText}>• Owner: {item.ownerName}</Text>
+                  ) : null}
+                </View>
+
                 <Text style={styles.cardMeta}>Category: {item.category} • License: {item.tradeLicense || 'Not Submitted'}</Text>
+                
                 <View style={styles.rowGap}>
                   <TouchableOpacity 
                     style={[styles.actionBtn, { backgroundColor: '#34C759' }]} 
                     onPress={() => handleKycAction(item.id, 'Approved')}
                   >
                     <CheckCircle2 size={16} color="#FFF" />
-                    <Text style={styles.btnText}>Approve KYC</Text>
+                    <Text style={styles.btnText}>Approve</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
                     style={[styles.actionBtn, { backgroundColor: '#FF3B30' }]} 
@@ -213,6 +287,13 @@ export default function AdminDashboardScreen() {
                   >
                     <XCircle size={16} color="#FFF" />
                     <Text style={styles.btnText}>Reject</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.actionBtn, { backgroundColor: '#FF9500' }]} 
+                    onPress={() => openResetModal({ id: item.id, name: item.shopName, phone: item.phone || '9876500000', role: 'Merchant' })}
+                  >
+                    <KeyRound size={15} color="#FFF" />
+                    <Text style={styles.btnText}>Reset Pass</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -229,20 +310,37 @@ export default function AdminDashboardScreen() {
             onRefresh={loadTabContent}
             ListEmptyComponent={<Text style={styles.emptyText}>No registered customers.</Text>}
             renderItem={({ item }) => (
-              <View style={styles.cardRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.cardTitle}>{item.name}</Text>
-                  <Text style={styles.cardMeta}>Phone: {item.phone}</Text>
-                  {item.address ? <Text style={styles.cardAddress}>{item.address}</Text> : null}
+              <View style={styles.card}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.cardTitle}>{item.name}</Text>
+                    {/* Prominently Displayed Customer Phone */}
+                    <View style={styles.customerPhoneRow}>
+                      <Phone size={14} color="#34C759" />
+                      <Text style={styles.customerPhoneText}>Mobile: {item.phone}</Text>
+                    </View>
+                    {item.address ? <Text style={styles.cardAddress}>{item.address}</Text> : null}
+                  </View>
+                  <TouchableOpacity 
+                    style={[styles.badge, { backgroundColor: item.status === 'Active' ? '#E5F9ED' : '#FFEBEA' }]}
+                    onPress={() => handleToggleCustomer(item.id)}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: item.status === 'Active' ? '#34C759' : '#FF3B30' }}>
+                      {item.status || 'Active'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity 
-                  style={[styles.badge, { backgroundColor: item.status === 'Active' ? '#E5F9ED' : '#FFEBEA' }]}
-                  onPress={() => handleToggleCustomer(item.id)}
-                >
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: item.status === 'Active' ? '#34C759' : '#FF3B30' }}>
-                    {item.status || 'Active'} (Tap)
-                  </Text>
-                </TouchableOpacity>
+
+                {/* Reset Password Action Button for Customer */}
+                <View style={styles.customerActionRow}>
+                  <TouchableOpacity 
+                    style={styles.customerResetBtn}
+                    onPress={() => openResetModal({ id: item.id, name: item.name, phone: item.phone, role: 'Customer' })}
+                  >
+                    <KeyRound size={14} color="#FFF" />
+                    <Text style={styles.customerResetBtnText}>Reset Password</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
           />
@@ -318,6 +416,93 @@ export default function AdminDashboardScreen() {
         )}
 
       </View>
+
+      {/* Password Reset Modal */}
+      <Modal
+        visible={resetModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setResetModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <KeyRound size={20} color="#FF9500" />
+                <Text style={styles.modalTitle}>Admin Password Reset</Text>
+              </View>
+              <TouchableOpacity onPress={() => setResetModalVisible(false)}>
+                <XCircle size={22} color="#8E8E93" />
+              </TouchableOpacity>
+            </View>
+
+            {resetTargetUser && (
+              <View style={styles.targetUserBox}>
+                <View style={[styles.roleBadge, { backgroundColor: resetTargetUser.role === 'Merchant' ? '#FF9500' : '#007AFF' }]}>
+                  <Text style={styles.roleBadgeText}>{resetTargetUser.role.toUpperCase()}</Text>
+                </View>
+                <Text style={styles.targetUserName}>{resetTargetUser.name}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                  <Phone size={14} color="#34C759" />
+                  <Text style={styles.targetUserPhone}>Mobile: {resetTargetUser.phone}</Text>
+                </View>
+              </View>
+            )}
+
+            <Text style={styles.fieldLabel}>Set New Password (Min 8 Chars)</Text>
+            <View style={styles.passwordInputContainer}>
+              <TextInput
+                style={styles.passwordInput}
+                value={adminNewPassword}
+                onChangeText={setAdminNewPassword}
+                placeholder="Enter new password"
+                placeholderTextColor="#8E8E93"
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity onPress={() => setShowPassword(p => !p)} style={{ padding: 8 }}>
+                {showPassword ? <EyeOff size={18} color="#8E8E93" /> : <Eye size={18} color="#8E8E93" />}
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity 
+              style={styles.quickPresetChip}
+              onPress={() => setAdminNewPassword('Temp@2026')}
+            >
+              <Text style={styles.quickPresetText}>⚡ Set Temp Password: <Text style={{ fontWeight: '700', color: '#FF9500' }}>Temp@2026</Text></Text>
+            </TouchableOpacity>
+
+            <Text style={styles.modalNote}>
+              Note: This will securely re-hash the password on the database, unlock the account, and reset failed login attempts immediately.
+            </Text>
+
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setResetModalVisible(false)}
+                disabled={isResettingPassword}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalConfirmBtn}
+                onPress={handleConfirmPasswordReset}
+                disabled={isResettingPassword}
+              >
+                {isResettingPassword ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <>
+                    <KeyRound size={16} color="#FFF" />
+                    <Text style={styles.modalConfirmText}>Confirm Reset</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -351,5 +536,34 @@ const styles = StyleSheet.create({
   input: { backgroundColor: '#3A3A3C', borderRadius: 8, padding: 10, color: '#FFF', fontSize: 15 },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20, borderTopWidth: 1, borderTopColor: '#3A3A3C', paddingTop: 16 },
   switchLabel: { color: '#FFF', fontSize: 14, fontWeight: '600' },
-  switchSubText: { color: '#8E8E93', fontSize: 12, marginTop: 2, lineHeight: 16 }
+  switchSubText: { color: '#8E8E93', fontSize: 12, marginTop: 2, lineHeight: 16 },
+  merchantMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, marginBottom: 2, flexWrap: 'wrap', gap: 8 },
+  phoneBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#3A3A3C', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, gap: 5 },
+  phoneBadgeText: { color: '#FF9500', fontSize: 13, fontWeight: '700' },
+  ownerText: { color: '#AEAEC2', fontSize: 13, fontWeight: '500' },
+  customerPhoneRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  customerPhoneText: { color: '#34C759', fontSize: 14, fontWeight: '700' },
+  customerActionRow: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 12, borderTopWidth: 1, borderTopColor: '#3A3A3C', paddingTop: 10 },
+  customerResetBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FF9500', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  customerResetBtnText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalContent: { width: '100%', maxWidth: 440, backgroundColor: '#2C2C2E', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#3A3A3C' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  modalTitle: { color: '#FFF', fontSize: 17, fontWeight: '700' },
+  targetUserBox: { backgroundColor: '#1C1C1E', borderRadius: 10, padding: 12, marginBottom: 16, borderLeftWidth: 3, borderLeftColor: '#FF9500' },
+  roleBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginBottom: 4 },
+  roleBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
+  targetUserName: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+  targetUserPhone: { color: '#E5E5EA', fontSize: 13, fontWeight: '600' },
+  fieldLabel: { color: '#8E8E93', fontSize: 13, fontWeight: '600', marginBottom: 6 },
+  passwordInputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#3A3A3C', borderRadius: 8, borderWidth: 1, borderColor: '#48484A' },
+  passwordInput: { flex: 1, padding: 12, color: '#FFF', fontSize: 15 },
+  quickPresetChip: { alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: 'rgba(255, 149, 0, 0.15)', borderWidth: 1, borderColor: 'rgba(255, 149, 0, 0.4)' },
+  quickPresetText: { color: '#E5E5EA', fontSize: 12 },
+  modalNote: { color: '#8E8E93', fontSize: 12, marginTop: 14, lineHeight: 16 },
+  modalBtnRow: { flexDirection: 'row', gap: 10, marginTop: 20 },
+  modalCancelBtn: { flex: 1, height: 42, borderRadius: 8, backgroundColor: '#3A3A3C', alignItems: 'center', justifyContent: 'center' },
+  modalCancelText: { color: '#E5E5EA', fontSize: 14, fontWeight: '600' },
+  modalConfirmBtn: { flex: 1.5, height: 42, borderRadius: 8, backgroundColor: '#FF9500', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  modalConfirmText: { color: '#FFF', fontSize: 14, fontWeight: '700' }
 });
