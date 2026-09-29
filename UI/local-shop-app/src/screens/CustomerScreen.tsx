@@ -76,7 +76,7 @@ export default function CustomerScreen({ currentUser }: CustomerScreenProps) {
   const [stores, setStores] = useState<StoreItem[]>([]);
   const [selectedStore, setSelectedStore] = useState<StoreItem>({
     id: 'default',
-    shopName: 'Kirana Junction',
+    shopName: 'Tarama Stores',
     category: 'Groceries & Daily Essentials',
     isOpen: true,
     operatingHours: '08:00 AM - 09:30 PM',

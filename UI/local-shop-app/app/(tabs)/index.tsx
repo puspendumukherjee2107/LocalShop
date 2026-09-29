@@ -306,7 +306,7 @@ export default function HomeScreen() {
               }}
             />
           ) : (
-            <SimpleMerchantScreen shopName={merchantShop || 'Kirana Junction'} />
+            <SimpleMerchantScreen shopName={merchantShop || 'Tarama Stores'} />
           )
         )}
 

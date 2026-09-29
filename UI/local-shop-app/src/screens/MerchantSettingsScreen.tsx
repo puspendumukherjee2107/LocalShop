@@ -20,7 +20,7 @@ export default function MerchantSettingsScreen() {
 
   const fetchProfile = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/stores/profile?shopName=Kirana Junction`);
+      const response = await fetch(`${BASE_URL}/stores/profile?shopName=Tarama Stores`);
       if (response.ok) {
         const data = await response.json();
         setIsOpen(data.isOpen);
@@ -38,7 +38,7 @@ export default function MerchantSettingsScreen() {
   const toggleStoreOpen = async (val: boolean) => {
     setIsOpen(val);
     try {
-      await fetch(`${BASE_URL}/stores/toggle-open?shopName=Kirana Junction`, { method: 'PUT' });
+      await fetch(`${BASE_URL}/stores/toggle-open?shopName=Tarama Stores`, { method: 'PUT' });
     } catch {
       console.warn('Error toggling store status.');
     }
@@ -50,7 +50,7 @@ export default function MerchantSettingsScreen() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          shopName: 'Kirana Junction',
+          shopName: 'Tarama Stores',
           operatingHours: hours.trim(),
           deliveryRadiusKm: parseFloat(deliveryRadius) || 3.0,
           minOrderAmount: parseFloat(minOrder) || 150.0
@@ -76,7 +76,7 @@ export default function MerchantSettingsScreen() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          shopName: 'Kirana Junction',
+          shopName: 'Tarama Stores',
           tradeLicense: tradeLicense.trim()
         })
       });

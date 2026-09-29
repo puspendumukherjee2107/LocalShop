@@ -241,7 +241,7 @@ The application provides a clean, role-gated onboarding journey:
    * The user enters their phone/key and password to log in.
    * **1-Tap Quick Fill Demo Buttons** are provided on all login screens for rapid evaluation:
      * Customer: Rahul Sharma (`9876543210` / `Customer@2026!`)
-     * Merchant: Kirana Junction (`9876500000` / `Merchant@2026!`)
+     * Merchant: Tarama Stores (`9876500000` / `Merchant@2026!`)
      * Admin: Super Admin (`superadmin` / `Admin@2026!`)
 3. **Streamlined Post-Login Experience**:
    * **Customer**: Selects merchant, writes/adds grocery items, places order, reviews & approves price quote, tracks packing status, and confirms delivery & payment completion.
@@ -304,7 +304,7 @@ sequenceDiagram
     actor M as Merchant
     actor D as Delivery Partner
 
-    C->>App: Opens App & Selects "Kirana Junction"
+    C->>App: Opens App & Selects "Tarama Stores"
     App->>C: Displays Categories & Stock
     C->>App: Adds items to Cart & enters "FIRST50"
     App->>API: POST /api/coupons/validate
@@ -337,7 +337,7 @@ sequenceDiagram
    * *Option B*: Take a photo of a physical handwritten paper slip.
 3. **Step 3: Submit**: Tap **Send List to Store**.
 4. **Step 4: Merchant Quotation**: The merchant receives the list on their dashboard, checks shelf availability, types the unit prices, and clicks **Dispatch Quote**.
-5. **Step 5: Review & Checkout**: The customer receives a push alert: *"Kirana Junction sent a quotation of ₹340 for your list"*. The customer reviews itemized prices, applies any coupons, and clicks **Accept & Pay**.
+5. **Step 5: Review & Checkout**: The customer receives a push alert: *"Tarama Stores sent a quotation of ₹340 for your list"*. The customer reviews itemized prices, applies any coupons, and clicks **Accept & Pay**.
 
 ---
 
@@ -359,7 +359,7 @@ The SQLite database (`LocalStore.db`) comes pre-seeded with complete test scenar
 | Persona | Username / Phone | Password | Associated Profile / Notes |
 | :--- | :--- | :--- | :--- |
 | 🛒 **Customer** | `9876543210` | `Customer@2026!` | Rahul Sharma (Indiranagar, Bangalore) |
-| 🏪 **Merchant** | `9876500000` | `Merchant@2026!` | Kirana Junction (Store ID: 1) |
+| 🏪 **Merchant** | `9876500000` | `Merchant@2026!` | Tarama Stores (Store ID: 1) |
 | 🛵 **Delivery Rider 1** | `delivery001` | `Delivery@2026!` | Rohan Das (Hero Splendor, 4.9⭐) |
 | 🛵 **Delivery Rider 2** | `delivery002` | `Delivery@2026!` | Aman Verma (Honda Activa, 4.8⭐) |
 | 🛡️ **Platform Admin** | `superadmin` | `Admin@2026!` | Full administrative clearance |

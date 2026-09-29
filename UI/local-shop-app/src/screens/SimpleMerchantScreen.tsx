@@ -45,7 +45,7 @@ interface SimpleMerchantScreenProps {
   shopName?: string;
 }
 
-export default function SimpleMerchantScreen({ shopName = 'Kirana Junction' }: SimpleMerchantScreenProps) {
+export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: SimpleMerchantScreenProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [isTogglingOpen, setIsTogglingOpen] = useState(false);
   const [orders, setOrders] = useState<OrderItem[]>([]);

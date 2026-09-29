@@ -58,7 +58,7 @@ export default function SimpleCustomerScreen() {
 
   // Available Merchants
   const [stores, setStores] = useState<StoreItem[]>([
-    { id: '1', shopName: 'Kirana Junction', category: 'Groceries & Daily Essentials', isOpen: true, operatingHours: '8:00 AM - 10:00 PM' },
+    { id: '1', shopName: 'Tarama Stores', category: 'Groceries & Daily Essentials', isOpen: true, operatingHours: '8:00 AM - 10:00 PM' },
     { id: '2', shopName: 'Gupta Supermarket', category: 'Groceries & Spices', isOpen: true, operatingHours: '7:30 AM - 10:00 PM' },
     { id: '3', shopName: 'Deluxe Dairy Hub', category: 'Dairy, Bakery & Sweets', isOpen: true, operatingHours: '6:00 AM - 9:00 PM' }
   ]);

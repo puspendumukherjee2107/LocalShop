@@ -59,7 +59,7 @@ public class AdminController : ControllerBase
         {
             var seed = new List<StoreProfile>
             {
-                new() { ShopName = "Kirana Junction", Category = "Groceries & Daily Essentials", TradeLicense = "TRD-992817", KycStatus = "Approved", IsOpen = true },
+                new() { ShopName = "Tarama Stores", Category = "Groceries & Daily Essentials", TradeLicense = "TRD-992817", KycStatus = "Approved", IsOpen = true },
                 new() { ShopName = "Mishra Kirana Store", Category = "Groceries", TradeLicense = "TRD-998271", KycStatus = "Pending", IsOpen = true },
                 new() { ShopName = "Deluxe Dairy Hub", Category = "Dairy", TradeLicense = "TRD-884710", KycStatus = "Pending", IsOpen = true }
             };

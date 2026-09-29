@@ -81,7 +81,7 @@ This document provides an exhaustive, screen-by-screen breakdown of every user i
 * **Purpose:** Multi-store selection, delivery address picker, dual ordering modes, and discount coupons.
 
 #### Section C2.1: Store Selector & Hero Banner
-* **Store Pills Strip:** Horizontal scroll list showing nearby stores (`Kirana Junction`, `Daily Fresh Organics`, `Sharma Dairy`).
+* **Store Pills Strip:** Horizontal scroll list showing nearby stores (`Tarama Stores`, `Daily Fresh Organics`, `Sharma Dairy`).
 * **Active Shop Banner:** Shows store name, category, star rating, operating hours, delivery radius, and open/closed badge.
 * **WhatsApp Inquiry Button:** Deep-links directly to shopkeeper's WhatsApp with greeting (`https://wa.me/919876500000`).
 
@@ -181,7 +181,7 @@ This document provides an exhaustive, screen-by-screen breakdown of every user i
 
 ### Screen D2: Assigned Delivery Queue & Order Cards
 Each active delivery card presents essential fulfillment details:
-* **Store Name & Order ID:** e.g. `Kirana Junction • ORD-29248D`.
+* **Store Name & Order ID:** e.g. `Tarama Stores • ORD-29248D`.
 * **Customer Contact Details:** Name and phone number.
 * **Delivery Destination:** Full address with street and landmark instructions.
 * **Bill & Payment Status:** Total order value and payment method (`Cash on Delivery` / `Prepaid UPI`).

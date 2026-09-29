@@ -14,7 +14,7 @@ A comprehensive step-by-step operational manual for navigating, testing, and ope
 | **Real-Time SignalR Hub** | [http://localhost:5000/hubs/orders](http://localhost:5000/hubs/orders) |
 | **Database Engine** | SQLite `LocalStore.db` (WAL mode enabled, 30s busy timeout) |
 | **Customer Default Mobile** | `9876543210` (Password: set at registration, e.g. `pass123`) |
-| **Merchant Store Default** | `Kirana Junction` (Phone: `9876500000`) |
+| **Merchant Store Default** | `Tarama Stores` (Phone: `9876500000`) |
 | **Delivery Driver Profile** | `Rohan Das` (Phone: `9876500001`) • `Aman Verma` (Phone: `9876500002`) |
 | **Admin Master Credentials** | Admin Key: `superadmin` • Password: `admin123` |
 | **Seeded Promo Coupons** | `FIRST50` (Flat ₹50 Off) • `KIRANA10` (10% Off) • `FLAT20` (Flat ₹20 Off) |
@@ -73,7 +73,7 @@ graph LR
    * Persisted in SQLite `CustomerAddresses` (`/api/customers/{phone}/addresses`).
 
 ### Step 3: Browse Neighborhood Stores & Inquire via WhatsApp
-1. Tap any store pill in the top carousel (`Kirana Junction`, `Daily Fresh Organics`, `Sharma Dairy & Provisions`).
+1. Tap any store pill in the top carousel (`Tarama Stores`, `Daily Fresh Organics`, `Sharma Dairy & Provisions`).
 2. View live operating hours, delivery radius, customer rating, and open/closed status.
 3. Tap **"💬 WhatsApp"** on the store banner to open WhatsApp (`https://wa.me/919876500000`) with prefilled greeting to ask about item availability before placing an order.
 
@@ -177,7 +177,7 @@ graph LR
 
 ### Step 2: Active Delivery Queue & Directions
 1. Each active order card displays:
-   * Order ID & Store Name (`Kirana Junction`)
+   * Order ID & Store Name (`Tarama Stores`)
    * Customer Name & Mobile Number
    * Complete Delivery Address with `📍` navigation pin
    * Total Bill Amount and Payment Mode (`Cash on Delivery` / `UPI Prepaid`)

@@ -238,7 +238,7 @@ export default function MerchantAuthScreen({ onAuthSuccess }: MerchantAuthProps)
               <Text style={styles.label}>Shop Name</Text>
               <View style={styles.inputBox}>
                 <Store size={18} color="#8E8E93" style={styles.icon} />
-                <TextInput style={styles.input} placeholder="e.g., Kirana Junction" value={shopName} onChangeText={setShopName} />
+                <TextInput style={styles.input} placeholder="e.g., Tarama Stores" value={shopName} onChangeText={setShopName} />
               </View>
 
               <Text style={styles.label}>Store Category</Text>
@@ -363,7 +363,7 @@ export default function MerchantAuthScreen({ onAuthSuccess }: MerchantAuthProps)
                 setPassword('Merchant@2026!');
               }}
             >
-              <Text style={{ color: '#6D28D9', fontSize: 13, fontWeight: '600' }}>⚡ Quick Fill Demo: Kirana Junction (Merchant)</Text>
+              <Text style={{ color: '#6D28D9', fontSize: 13, fontWeight: '600' }}>⚡ Quick Fill Demo: Tarama Stores (Merchant)</Text>
             </TouchableOpacity>
           )}
 

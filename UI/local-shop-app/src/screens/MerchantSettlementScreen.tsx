@@ -22,7 +22,7 @@ export default function MerchantSettlementScreen() {
 
   const fetchSettlementOverview = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/settlements?shopName=Kirana Junction`);
+      const response = await fetch(`${BASE_URL}/settlements?shopName=Tarama Stores`);
       if (response.ok) {
         const data = await response.json();
         setBalance(data.withdrawableBalance);
@@ -51,7 +51,7 @@ export default function MerchantSettlementScreen() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  shopName: 'Kirana Junction',
+                  shopName: 'Tarama Stores',
                   amount: balance,
                   bankAccount: 'HDFC ****4321'
                 })

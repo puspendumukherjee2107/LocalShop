@@ -146,10 +146,20 @@ static void SeedDemoAccounts(IServiceProvider services)
 
     EnsureDemoUser(db, "Customer", "9876543210", "Turja Mukherjee", "Customer@2026!", "Flat 4B, Greenfield Apartments");
     EnsureDemoUser(db, "Admin", "superadmin", "System Admin", "Admin@2026!", "Head Office");
-    EnsureDemoUser(db, "Merchant", "9876500000", "Kirana Junction", "Merchant@2026!", "Main Market");
+    EnsureDemoUser(db, "Merchant", "9876500000", "Tarama Stores", "Merchant@2026!", "Main Market");
     EnsureDemoUser(db, "Delivery", "delivery001", "Rohan Das", "Delivery@2026!", "City Hub");
 
     db.SaveChanges();
+
+    // Migrate any existing records with the legacy Kirana Junction shop name
+    try
+    {
+        db.Database.ExecuteSqlRaw("UPDATE \"Orders\" SET \"ShopName\" = 'Tarama Stores' WHERE \"ShopName\" = 'Kirana Junction';");
+        db.Database.ExecuteSqlRaw("UPDATE \"StoreProfiles\" SET \"ShopName\" = 'Tarama Stores' WHERE \"ShopName\" = 'Kirana Junction';");
+        db.Database.ExecuteSqlRaw("UPDATE \"Staff\" SET \"ShopName\" = 'Tarama Stores' WHERE \"ShopName\" = 'Kirana Junction';");
+        db.Database.ExecuteSqlRaw("UPDATE \"Settlements\" SET \"ShopName\" = 'Tarama Stores' WHERE \"ShopName\" = 'Kirana Junction';");
+    }
+    catch { }
 }
 
 static void EnsureDemoUser(StoreDbContext db, string role, string phone, string name, string password, string address)

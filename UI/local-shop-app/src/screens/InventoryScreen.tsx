@@ -256,7 +256,7 @@ export default function InventoryScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           senderRole: 'Merchant',
-          senderName: 'Kirana Junction',
+          senderName: 'Tarama Stores',
           messageText: newChatText.trim()
         })
       });
@@ -305,7 +305,7 @@ export default function InventoryScreen() {
         body: JSON.stringify({
           customerName: billCustomer.trim() || 'Walk-in Customer',
           customerPhone: billPhone.trim(),
-          shopName: 'Kirana Junction',
+          shopName: 'Tarama Stores',
           itemsText: billItems.trim() || 'Counter Sale',
           itemsCount: 1,
           totalAmount: parsedAmount,

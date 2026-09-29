@@ -54,9 +54,9 @@ public class StoresController : ControllerBase
         }));
     }
 
-    // GET: api/stores/profile?shopName=Kirana Junction
+    // GET: api/stores/profile?shopName=Tarama Stores
     [HttpGet("profile")]
-    public async Task<IActionResult> GetStoreProfile([FromQuery] string shopName = "Kirana Junction")
+    public async Task<IActionResult> GetStoreProfile([FromQuery] string shopName = "Tarama Stores")
     {
         var profile = await _context.StoreProfiles.FirstOrDefaultAsync(s => s.ShopName == shopName);
 
@@ -106,7 +106,7 @@ public class StoresController : ControllerBase
 
     // PUT: api/stores/toggle-open
     [HttpPut("toggle-open")]
-    public async Task<IActionResult> ToggleStoreOpen([FromQuery] string shopName = "Kirana Junction")
+    public async Task<IActionResult> ToggleStoreOpen([FromQuery] string shopName = "Tarama Stores")
     {
         var profile = await _context.StoreProfiles.FirstOrDefaultAsync(s => s.ShopName == shopName);
         if (profile == null)

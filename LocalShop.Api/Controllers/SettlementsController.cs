@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using LocalShop.Api.Data;
@@ -18,9 +18,9 @@ public class SettlementsController : ControllerBase
         _context = context;
     }
 
-    // GET: api/settlements?shopName=Kirana Junction
+    // GET: api/settlements?shopName=Tarama Stores
     [HttpGet]
-    public async Task<IActionResult> GetSettlementOverview([FromQuery] string shopName = "Kirana Junction")
+    public async Task<IActionResult> GetSettlementOverview([FromQuery] string shopName = "Tarama Stores")
     {
         // 1. Calculate Gross Digital Sales Delivered
         var digitalDeliveredSales = await _context.Orders

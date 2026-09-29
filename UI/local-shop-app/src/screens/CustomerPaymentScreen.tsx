@@ -18,7 +18,7 @@ interface Props {
 
 export default function CustomerPaymentScreen({ customerPhone = '9876543210' }: Props) {
   const [transactions, setTransactions] = useState<Transaction[]>([
-    { id: 'TXN-44910', storeName: 'Kirana Junction', amount: 215, date: '10 July 2026', method: 'UPI', status: 'Successful' },
+    { id: 'TXN-44910', storeName: 'Tarama Stores', amount: 215, date: '10 July 2026', method: 'UPI', status: 'Successful' },
     { id: 'TXN-43892', storeName: 'Gupta Supermarket', amount: 60, date: '08 July 2026', method: 'Card', status: 'Successful' },
     { id: 'TXN-41203', storeName: 'Deluxe Dairy Hub', amount: 160, date: '04 July 2026', method: 'UPI', status: 'Refunded' },
   ]);

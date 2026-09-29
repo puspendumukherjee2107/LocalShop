@@ -53,7 +53,7 @@ export default function OrderTrackingScreen() {
   const [orders, setOrders] = useState<Order[]>([
     { 
       id: 'ORD-9021', 
-      shopName: 'Kirana Junction', 
+      shopName: 'Tarama Stores', 
       itemsCount: 3, 
       totalAmount: 215, 
       status: 'Processing',
@@ -62,7 +62,7 @@ export default function OrderTrackingScreen() {
     },
     { 
       id: 'ORD-8841', 
-      shopName: 'Kirana Junction', 
+      shopName: 'Tarama Stores', 
       itemsCount: 1, 
       totalAmount: 60, 
       status: 'Delivered',
@@ -96,7 +96,7 @@ export default function OrderTrackingScreen() {
       ));
       Alert.alert(
         'Price Quote Received! 🏷️',
-        `Kirana Junction has quoted ₹${data.quoteAmount} for order ${data.orderId}!\n\nReview and tap "Accept Quote & Pay" to confirm.`
+        `Tarama Stores has quoted ₹${data.quoteAmount} for order ${data.orderId}!\n\nReview and tap "Accept Quote & Pay" to confirm.`
       );
     });
 
@@ -206,7 +206,7 @@ export default function OrderTrackingScreen() {
   const handleAcceptQuote = (orderId: string, amount: number) => {
     Alert.alert(
       'Accept Shopkeeper Quote',
-      `Kirana Junction has quoted ₹${amount} for your grocery list.\n\nChoose payment method to confirm:`,
+      `Tarama Stores has quoted ₹${amount} for your grocery list.\n\nChoose payment method to confirm:`,
       [
         { text: 'Cancel', style: 'cancel' },
         { 
@@ -521,7 +521,7 @@ export default function OrderTrackingScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.ratingModalCard}>
             <Text style={styles.ratingModalTitle}>Rate Your Experience</Text>
-            <Text style={styles.ratingModalSub}>How was your delivery from Kirana Junction?</Text>
+            <Text style={styles.ratingModalSub}>How was your delivery from Tarama Stores?</Text>
 
             <View style={styles.starsRow}>
               {[1, 2, 3, 4, 5].map((star) => (

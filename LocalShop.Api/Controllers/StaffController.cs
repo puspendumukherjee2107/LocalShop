@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using LocalShop.Api.Data;
@@ -18,9 +18,9 @@ public class StaffController : ControllerBase
         _context = context;
     }
 
-    // GET: api/staff?shopName=Kirana Junction
+    // GET: api/staff?shopName=Tarama Stores
     [HttpGet]
-    public async Task<IActionResult> GetStaff([FromQuery] string shopName = "Kirana Junction")
+    public async Task<IActionResult> GetStaff([FromQuery] string shopName = "Tarama Stores")
     {
         var staff = await _context.StaffMembers
             .Where(s => s.ShopName == shopName)

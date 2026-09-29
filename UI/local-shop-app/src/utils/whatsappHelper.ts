@@ -48,7 +48,7 @@ export async function openWhatsApp(phone: string, message: string): Promise<bool
  */
 export async function openWhatsAppToMerchant(
   merchantPhone: string = '9876500000',
-  shopName: string = 'Kirana Junction',
+  shopName: string = 'Tarama Stores',
   orderId: string,
   itemsSummary: string = ''
 ) {
@@ -67,7 +67,7 @@ export async function openWhatsAppToCustomer(
   deliveryOtp?: string,
   itemsSummary?: string
 ) {
-  let msg = `Hello ${customerName}! 👋\n\nGreetings from *Kirana Junction*.\nYour Order *#${orderId}* total bill is *₹${billAmount}*.\n`;
+  let msg = `Hello ${customerName}! 👋\n\nGreetings from *Tarama Stores*.\nYour Order *#${orderId}* total bill is *₹${billAmount}*.\n`;
   if (itemsSummary) {
     msg += `\n*Items:*\n${itemsSummary}\n`;
   }

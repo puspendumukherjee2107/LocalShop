@@ -82,7 +82,7 @@ public class OrdersController : ControllerBase
         {
             CustomerName = string.IsNullOrWhiteSpace(request.CustomerName) ? "Guest Customer" : request.CustomerName.Trim(),
             CustomerPhone = request.CustomerPhone?.Trim() ?? string.Empty,
-            ShopName = string.IsNullOrWhiteSpace(request.ShopName) ? "Kirana Junction" : request.ShopName.Trim(),
+            ShopName = string.IsNullOrWhiteSpace(request.ShopName) ? "Tarama Stores" : request.ShopName.Trim(),
             ItemsCount = estimatedCount,
             TotalAmount = 0,
             Status = "QuoteRequested",
@@ -116,7 +116,7 @@ public class OrdersController : ControllerBase
         {
             CustomerName = string.IsNullOrWhiteSpace(request.CustomerName) ? "Guest Customer" : request.CustomerName.Trim(),
             CustomerPhone = request.CustomerPhone?.Trim() ?? string.Empty,
-            ShopName = string.IsNullOrWhiteSpace(request.ShopName) ? "Kirana Junction" : request.ShopName.Trim(),
+            ShopName = string.IsNullOrWhiteSpace(request.ShopName) ? "Tarama Stores" : request.ShopName.Trim(),
             Status = "Processing",
             OrderType = "Catalog",
             PaymentMethod = string.IsNullOrWhiteSpace(request.PaymentMethod) ? "UPI" : request.PaymentMethod,
@@ -193,7 +193,7 @@ public class OrdersController : ControllerBase
         {
             CustomerName = string.IsNullOrWhiteSpace(request.CustomerName) ? "Walk-in Customer" : request.CustomerName.Trim(),
             CustomerPhone = request.CustomerPhone?.Trim() ?? string.Empty,
-            ShopName = string.IsNullOrWhiteSpace(request.ShopName) ? "Kirana Junction" : request.ShopName.Trim(),
+            ShopName = string.IsNullOrWhiteSpace(request.ShopName) ? "Tarama Stores" : request.ShopName.Trim(),
             ItemsCount = request.ItemsCount > 0 ? request.ItemsCount : 1,
             TotalAmount = request.TotalAmount,
             QuotedAmount = request.TotalAmount,

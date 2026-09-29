@@ -42,7 +42,7 @@ export default function StaffManagementScreen() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          shopName: 'Kirana Junction',
+          shopName: 'Tarama Stores',
           name: name.trim(),
           role: role.trim()
         })

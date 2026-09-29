@@ -5,7 +5,7 @@ public class Order
     public string Id { get; set; } = $"ORD-{Guid.NewGuid().ToString()[..6].ToUpper()}";
     public string CustomerName { get; set; } = string.Empty;
     public string CustomerPhone { get; set; } = string.Empty;
-    public string ShopName { get; set; } = "Kirana Junction";
+    public string ShopName { get; set; } = "Tarama Stores";
     public int ItemsCount { get; set; }
     public decimal TotalAmount { get; set; }
     public string Status { get; set; } = "Placed"; // QuoteRequested, PriceQuoted, Placed, Approved, Processing, Packed, DeliveredAndPaymentDone, Completed, Cancelled, DeclinedByCustomer, RejectedByMerchant
