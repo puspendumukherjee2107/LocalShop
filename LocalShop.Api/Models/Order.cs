@@ -22,5 +22,7 @@ public class Order
     public int? Rating { get; set; } // 1-5 stars
     public string? ReviewComment { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public bool IsDeletedByCustomer { get; set; } = false;
+    public bool IsDeletedByMerchant { get; set; } = false;
     public List<OrderItem> Items { get; set; } = new();
 }

@@ -51,6 +51,8 @@ interface OrderItem {
   quotedAmount?: number;
   status: string;
   createdAt: string;
+  isDeletedByCustomer?: boolean;
+  isDeletedByMerchant?: boolean;
   items?: OrderItemDetail[];
 }
 
@@ -118,17 +120,21 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
   const fetchOrders = useCallback(async (showLoading = true) => {
     if (showLoading) setIsLoading(true);
     try {
-      const res = await fetch(`${BASE_URL}/orders`);
+      const res = await fetch(`${BASE_URL}/orders?role=merchant`);
       if (res.ok) {
         const data: OrderItem[] = await res.json();
-        setOrders(data);
+        // Merchant sees their store's orders and excludes soft-deleted items
+        const shopOrders = data.filter(
+          o => (!shopName || o.shopName.toLowerCase() === shopName.toLowerCase()) && !o.isDeletedByMerchant
+        );
+        setOrders(shopOrders);
       }
     } catch {
       // quiet fallback in background poll
     } finally {
       if (showLoading) setIsLoading(false);
     }
-  }, []);
+  }, [shopName]);
 
   useEffect(() => {
     fetchOrders(true);
@@ -405,6 +411,67 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
     }
   };
 
+  // 4. Soft Delete a Single Order from Merchant History (preserves 100% of audit data in database)
+  const handleDeleteMerchantOrder = (orderId: string) => {
+    Alert.alert(
+      'Remove from Store History? 🗑️',
+      'This order will be removed from your dashboard history. (All transaction details are permanently archived in the database for auditing and accounts).',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            setOrders(prev => prev.filter(o => o.id !== orderId));
+            try {
+              const res = await fetch(`${BASE_URL}/orders/${orderId}/merchant-history`, {
+                method: 'DELETE'
+              });
+              if (!res.ok) {
+                fetchOrders(false);
+              }
+            } catch {
+              fetchOrders(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // 5. Clear All Completed/Cancelled Orders from Merchant History
+  const handleClearMerchantHistory = () => {
+    const hasCompleted = orders.some(
+      o => o.status === 'Completed' || o.status === 'Delivered' || o.status === 'Cancelled' || o.status === 'DeclinedByCustomer' || o.status === 'RejectedByMerchant' || o.status === 'DeliveredAndPaymentDone'
+    );
+    if (!hasCompleted) {
+      Alert.alert('No Completed Orders', 'There are no completed or settled orders to clear.');
+      return;
+    }
+
+    Alert.alert(
+      'Clear Completed Orders? 🗑️',
+      'Remove all completed and cancelled orders from your merchant view? They will remain permanently saved in the database for auditing and accounting.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear Completed',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await fetch(`${BASE_URL}/orders/merchant-history/clear?shopName=${encodeURIComponent(shopName)}`, {
+                method: 'DELETE'
+              });
+              fetchOrders(true);
+            } catch {
+              Alert.alert('Network Error', 'Failed to clear completed orders.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   // Filter orders
   const filteredOrders = orders.filter(o => {
     if (filter === 'completed') {
@@ -514,6 +581,13 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
             Completed
           </Text>
         </TouchableOpacity>
+
+        {filter === 'completed' && orders.some(o => o.status === 'Completed' || o.status === 'Delivered' || o.status === 'Cancelled' || o.status === 'DeclinedByCustomer' || o.status === 'RejectedByMerchant' || o.status === 'DeliveredAndPaymentDone') && (
+          <TouchableOpacity style={styles.clearHistoryBtn} onPress={handleClearMerchantHistory}>
+            <Trash2 size={13} color="#FF3B30" />
+            <Text style={styles.clearHistoryBtnText}>Clear Completed</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Orders List */}
@@ -556,41 +630,52 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
 
             return (
               <View style={styles.orderCard}>
-                {/* Order Top Header with Status Pill */}
+                {/* Order Top Header with Status Pill & Delete History */}
                 <View style={styles.orderTop}>
                   <View style={{ flex: 1, marginRight: 8 }}>
                     <Text style={styles.customerName}>{item.customerName || 'Customer'}</Text>
                     <Text style={styles.customerPhone}>📞 {item.customerPhone || 'No Phone'}</Text>
                     <Text style={styles.orderIdText}>Order #{item.id}</Text>
                   </View>
-                  <View style={[
-                    styles.statusBadgePill,
-                    isQuoteNeeded ? styles.pillOrange :
-                    isWaitingApproval ? styles.pillBlue :
-                    isApprovedReadyToPack ? styles.pillGreen :
-                    isPackedReadyToDeliver ? styles.pillPurple :
-                    isDeliveredWaitingCustomer ? styles.pillAmber :
-                    isCompleted ? styles.pillGreen :
-                    isRejected ? styles.pillRed : styles.pillGray
-                  ]}>
-                    <Text style={[
-                      styles.statusBadgePillText,
-                      isQuoteNeeded ? { color: '#B45309' } :
-                      isWaitingApproval ? { color: '#1D4ED8' } :
-                      isApprovedReadyToPack ? { color: '#15803D' } :
-                      isPackedReadyToDeliver ? { color: '#6D28D9' } :
-                      isDeliveredWaitingCustomer ? { color: '#C2410C' } :
-                      isCompleted ? { color: '#15803D' } :
-                      isRejected ? { color: '#B91C1C' } : { color: '#4B5563' }
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <View style={[
+                      styles.statusBadgePill,
+                      isQuoteNeeded ? styles.pillOrange :
+                      isWaitingApproval ? styles.pillBlue :
+                      isApprovedReadyToPack ? styles.pillGreen :
+                      isPackedReadyToDeliver ? styles.pillPurple :
+                      isDeliveredWaitingCustomer ? styles.pillAmber :
+                      isCompleted ? styles.pillGreen :
+                      isRejected ? styles.pillRed : styles.pillGray
                     ]}>
-                      {isQuoteNeeded ? '⏳ Quote Needed' :
-                       isWaitingApproval ? '🏷️ Quoted' :
-                       isApprovedReadyToPack ? '✅ Approved' :
-                       isPackedReadyToDeliver ? '📦 Packed' :
-                       isDeliveredWaitingCustomer ? '💰 Payment Pending' :
-                       isCompleted ? '🎉 Completed' :
-                       isRejected ? (item.status === 'DeclinedByCustomer' ? '❌ Customer Declined' : item.status === 'RejectedByMerchant' ? '❌ Not Approved' : '❌ Cancelled') : item.status}
-                    </Text>
+                      <Text style={[
+                        styles.statusBadgePillText,
+                        isQuoteNeeded ? { color: '#B45309' } :
+                        isWaitingApproval ? { color: '#1D4ED8' } :
+                        isApprovedReadyToPack ? { color: '#15803D' } :
+                        isPackedReadyToDeliver ? { color: '#6D28D9' } :
+                        isDeliveredWaitingCustomer ? { color: '#C2410C' } :
+                        isCompleted ? { color: '#15803D' } :
+                        isRejected ? { color: '#B91C1C' } : { color: '#4B5563' }
+                      ]}>
+                        {isQuoteNeeded ? '⏳ Quote Needed' :
+                         isWaitingApproval ? '🏷️ Quoted' :
+                         isApprovedReadyToPack ? '✅ Approved' :
+                         isPackedReadyToDeliver ? '📦 Packed' :
+                         isDeliveredWaitingCustomer ? '💰 Payment Pending' :
+                         isCompleted ? '🎉 Completed' :
+                         isRejected ? (item.status === 'DeclinedByCustomer' ? '❌ Customer Declined' : item.status === 'RejectedByMerchant' ? '❌ Not Approved' : '❌ Cancelled') : item.status}
+                      </Text>
+                    </View>
+                    {(isCompleted || isRejected) && (
+                      <TouchableOpacity
+                        style={styles.deleteOrderBtn}
+                        onPress={() => handleDeleteMerchantOrder(item.id)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Trash2 size={16} color="#FF3B30" />
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
 
@@ -1549,5 +1634,31 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#6B7280',
     marginTop: 2
+  },
+  clearHistoryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    marginLeft: 'auto'
+  },
+  clearHistoryBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#DC2626'
+  },
+  deleteOrderBtn: {
+    padding: 4,
+    borderRadius: 6,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center'
   }
 });

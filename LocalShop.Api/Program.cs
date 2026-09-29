@@ -94,6 +94,7 @@ try
         db.Database.ExecuteSqlRaw("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
         EnsureUserSecurityColumns(db);
         EnsureOrderItemColumns(db);
+        EnsureOrderColumns(db);
     }
     catch (Exception ex)
     {
@@ -162,6 +163,36 @@ static void EnsureOrderItemColumns(StoreDbContext db)
     if (!columns.Contains("IsAvailable"))
     {
         db.Database.ExecuteSqlRaw("ALTER TABLE \"OrderItems\" ADD COLUMN \"IsAvailable\" INTEGER NOT NULL DEFAULT 1;");
+    }
+}
+
+static void EnsureOrderColumns(StoreDbContext db)
+{
+    var connection = db.Database.GetDbConnection();
+    if (connection.State != System.Data.ConnectionState.Open)
+    {
+        connection.Open();
+    }
+
+    using var command = connection.CreateCommand();
+    command.CommandText = "PRAGMA table_info('Orders');";
+
+    var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    using var reader = command.ExecuteReader();
+    while (reader.Read())
+    {
+        var columnName = reader.GetString(1);
+        columns.Add(columnName);
+    }
+
+    if (!columns.Contains("IsDeletedByCustomer"))
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"Orders\" ADD COLUMN \"IsDeletedByCustomer\" INTEGER NOT NULL DEFAULT 0;");
+    }
+
+    if (!columns.Contains("IsDeletedByMerchant"))
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"Orders\" ADD COLUMN \"IsDeletedByMerchant\" INTEGER NOT NULL DEFAULT 0;");
     }
 }
 

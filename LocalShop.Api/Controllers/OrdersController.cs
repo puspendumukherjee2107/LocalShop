@@ -24,34 +24,146 @@ public class OrdersController : ControllerBase
 
     // GET: api/orders
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Order>>> GetAllOrders()
+    public async Task<ActionResult<IEnumerable<Order>>> GetAllOrders(
+        [FromQuery] string? role,
+        [FromQuery] bool includeDeleted = false)
     {
-        return await _context.Orders
+        var query = _context.Orders
             .Include(o => o.Items)
             .OrderByDescending(o => o.CreatedAt)
-            .ToListAsync();
+            .AsQueryable();
+
+        if (!includeDeleted)
+        {
+            if (string.Equals(role, "customer", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(o => !o.IsDeletedByCustomer);
+            }
+            else if (string.Equals(role, "merchant", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(o => !o.IsDeletedByMerchant);
+            }
+        }
+
+        return await query.ToListAsync();
     }
 
     // GET: api/orders/shop/{shopName}
     [HttpGet("shop/{shopName}")]
-    public async Task<ActionResult<IEnumerable<Order>>> GetShopOrders(string shopName)
+    public async Task<ActionResult<IEnumerable<Order>>> GetShopOrders(string shopName, [FromQuery] bool includeDeleted = false)
     {
-        return await _context.Orders
+        var query = _context.Orders
             .Include(o => o.Items)
-            .Where(o => o.ShopName.ToLower() == shopName.ToLower())
-            .OrderByDescending(o => o.CreatedAt)
-            .ToListAsync();
+            .Where(o => o.ShopName.ToLower() == shopName.ToLower());
+
+        if (!includeDeleted)
+        {
+            query = query.Where(o => !o.IsDeletedByMerchant);
+        }
+
+        return await query.OrderByDescending(o => o.CreatedAt).ToListAsync();
     }
 
     // GET: api/orders/customer/{customerName}
     [HttpGet("customer/{customerName}")]
-    public async Task<ActionResult<IEnumerable<Order>>> GetCustomerOrders(string customerName)
+    public async Task<ActionResult<IEnumerable<Order>>> GetCustomerOrders(string customerName, [FromQuery] bool includeDeleted = false)
     {
-        return await _context.Orders
+        var query = _context.Orders
             .Include(o => o.Items)
-            .Where(o => o.CustomerName.ToLower() == customerName.ToLower())
-            .OrderByDescending(o => o.CreatedAt)
+            .Where(o => o.CustomerName.ToLower() == customerName.ToLower());
+
+        if (!includeDeleted)
+        {
+            query = query.Where(o => !o.IsDeletedByCustomer);
+        }
+
+        return await query.OrderByDescending(o => o.CreatedAt).ToListAsync();
+    }
+
+    // DELETE: api/orders/{id}/customer-history
+    [HttpDelete("{id}/customer-history")]
+    public async Task<IActionResult> DeleteCustomerOrderHistory(string id)
+    {
+        var order = await _context.Orders.FindAsync(id);
+        if (order == null)
+        {
+            return NotFound(new { message = "Order not found." });
+        }
+
+        // Soft delete: marks hidden from customer view while preserving 100% of data for auditing
+        order.IsDeletedByCustomer = true;
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Order removed from customer history.", orderId = id });
+    }
+
+    // DELETE: api/orders/{id}/merchant-history
+    [HttpDelete("{id}/merchant-history")]
+    public async Task<IActionResult> DeleteMerchantOrderHistory(string id)
+    {
+        var order = await _context.Orders.FindAsync(id);
+        if (order == null)
+        {
+            return NotFound(new { message = "Order not found." });
+        }
+
+        // Soft delete: marks hidden from merchant view while preserving 100% of data for auditing
+        order.IsDeletedByMerchant = true;
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Order removed from merchant history.", orderId = id });
+    }
+
+    // DELETE: api/orders/customer-history/clear
+    [HttpDelete("customer-history/clear")]
+    public async Task<IActionResult> ClearCustomerHistory([FromQuery] string? phone, [FromQuery] string? customerName)
+    {
+        var query = _context.Orders.Where(o => !o.IsDeletedByCustomer);
+
+        if (!string.IsNullOrWhiteSpace(phone))
+        {
+            query = query.Where(o => o.CustomerPhone == phone);
+        }
+        else if (!string.IsNullOrWhiteSpace(customerName))
+        {
+            query = query.Where(o => o.CustomerName.ToLower() == customerName.ToLower());
+        }
+
+        var finishedStatuses = new[] { "Completed", "Delivered", "Cancelled", "DeclinedByCustomer", "RejectedByMerchant", "DeliveredAndPaymentDone" };
+        var ordersToClear = await query.Where(o => finishedStatuses.Contains(o.Status)).ToListAsync();
+
+        foreach (var order in ordersToClear)
+        {
+            order.IsDeletedByCustomer = true;
+        }
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = $"{ordersToClear.Count} orders cleared from customer history.", clearedCount = ordersToClear.Count });
+    }
+
+    // DELETE: api/orders/merchant-history/clear
+    [HttpDelete("merchant-history/clear")]
+    public async Task<IActionResult> ClearMerchantHistory([FromQuery] string shopName)
+    {
+        if (string.IsNullOrWhiteSpace(shopName))
+        {
+            return BadRequest(new { message = "Shop name is required." });
+        }
+
+        var finishedStatuses = new[] { "Completed", "Delivered", "Cancelled", "DeclinedByCustomer", "RejectedByMerchant", "DeliveredAndPaymentDone" };
+        var ordersToClear = await _context.Orders
+            .Where(o => o.ShopName.ToLower() == shopName.ToLower() && !o.IsDeletedByMerchant && finishedStatuses.Contains(o.Status))
             .ToListAsync();
+
+        foreach (var order in ordersToClear)
+        {
+            order.IsDeletedByMerchant = true;
+        }
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = $"{ordersToClear.Count} orders cleared from merchant history.", clearedCount = ordersToClear.Count });
     }
 
     // GET: api/orders/{id}

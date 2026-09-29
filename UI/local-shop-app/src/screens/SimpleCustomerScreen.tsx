@@ -26,7 +26,8 @@ import {
   Package,
   IndianRupee,
   XCircle,
-  AlertTriangle
+  AlertTriangle,
+  Trash2
 } from 'lucide-react-native';
 import { BASE_URL } from '../services/apiConfig';
 import { signalRService } from '../services/signalRService';
@@ -62,6 +63,8 @@ interface OrderItem {
   status: string;
   createdAt: string;
   deliveryOtp?: string;
+  isDeletedByCustomer?: boolean;
+  isDeletedByMerchant?: boolean;
   items?: OrderItemDetail[];
 }
 
@@ -152,16 +155,17 @@ export default function SimpleCustomerScreen({ currentUser }: SimpleCustomerScre
   const loadMyOrders = useCallback(async (showLoading = true) => {
     if (showLoading) setIsLoadingOrders(true);
     try {
-      const res = await fetch(`${BASE_URL}/orders`);
+      const res = await fetch(`${BASE_URL}/orders?role=customer`);
       if (res.ok) {
         const data: OrderItem[] = await res.json();
-        // Filter orders for this customer if phone or name is present
+        // Filter orders for this customer if phone or name is present, and exclude soft-deleted orders
         const relevant = (customerPhone || customerName)
           ? data.filter(
-              o => (customerPhone && o.customerPhone === customerPhone) ||
-                   (customerName && o.customerName && o.customerName.toLowerCase() === customerName.toLowerCase())
+              o => !o.isDeletedByCustomer &&
+                   ((customerPhone && o.customerPhone === customerPhone) ||
+                    (customerName && o.customerName && o.customerName.toLowerCase() === customerName.toLowerCase()))
             )
-          : data;
+          : data.filter(o => !o.isDeletedByCustomer);
         setMyOrders(relevant);
       }
     } catch {
@@ -399,6 +403,70 @@ export default function SimpleCustomerScreen({ currentUser }: SimpleCustomerScre
     }
   };
 
+  // 4. Soft Delete a Single Order from Customer History (audit data preserved)
+  const handleDeleteCustomerOrder = (orderId: string) => {
+    Alert.alert(
+      'Remove from History? 🗑️',
+      'This order will be removed from your order history view. (The store and system retain archived records for auditing).',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            setMyOrders(prev => prev.filter(o => o.id !== orderId));
+            try {
+              const res = await fetch(`${BASE_URL}/orders/${orderId}/customer-history`, {
+                method: 'DELETE'
+              });
+              if (!res.ok) {
+                loadMyOrders(false);
+              }
+            } catch {
+              loadMyOrders(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // 5. Clear All Completed/Cancelled Orders from Customer History
+  const handleClearCustomerHistory = () => {
+    const hasCompleted = myOrders.some(
+      o => o.status === 'Completed' || o.status === 'Delivered' || o.status === 'Cancelled' || o.status === 'DeclinedByCustomer' || o.status === 'RejectedByMerchant' || o.status === 'DeliveredAndPaymentDone'
+    );
+    if (!hasCompleted) {
+      Alert.alert('No Completed Orders', 'You do not have any past completed or cancelled orders to clear.');
+      return;
+    }
+
+    Alert.alert(
+      'Clear Past Orders? 🗑️',
+      'Remove all completed and settled orders from your view? Active in-progress orders will remain visible.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear Past Orders',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const phoneParam = customerPhone ? `phone=${encodeURIComponent(customerPhone)}` : '';
+              const nameParam = customerName ? `customerName=${encodeURIComponent(customerName)}` : '';
+              const query = [phoneParam, nameParam].filter(Boolean).join('&');
+              await fetch(`${BASE_URL}/orders/customer-history/clear?${query}`, {
+                method: 'DELETE'
+              });
+              loadMyOrders(true);
+            } catch {
+              Alert.alert('Network Error', 'Failed to clear past order history.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const activeOrdersCount = myOrders.filter(
     o => o.status !== 'Completed' && o.status !== 'Cancelled'
   ).length;
@@ -582,10 +650,18 @@ export default function SimpleCustomerScreen({ currentUser }: SimpleCustomerScre
         <View style={styles.content}>
           <View style={styles.orderListHeader}>
             <Text style={styles.orderListTitle}>My Grocery Orders</Text>
-            <TouchableOpacity style={styles.refreshBtn} onPress={() => loadMyOrders(true)} disabled={isLoadingOrders}>
-              <RefreshCw size={16} color="#007AFF" />
-              <Text style={styles.refreshBtnText}>Refresh</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {myOrders.some(o => o.status === 'Completed' || o.status === 'Delivered' || o.status === 'Cancelled' || o.status === 'DeclinedByCustomer' || o.status === 'RejectedByMerchant' || o.status === 'DeliveredAndPaymentDone') && (
+                <TouchableOpacity style={styles.clearHistoryBtn} onPress={handleClearCustomerHistory}>
+                  <Trash2 size={13} color="#FF3B30" />
+                  <Text style={styles.clearHistoryBtnText}>Clear History</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={styles.refreshBtn} onPress={() => loadMyOrders(true)} disabled={isLoadingOrders}>
+                <RefreshCw size={16} color="#007AFF" />
+                <Text style={styles.refreshBtnText}>Refresh</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {isLoadingOrders ? (
@@ -622,40 +698,51 @@ export default function SimpleCustomerScreen({ currentUser }: SimpleCustomerScre
 
                 return (
                   <View style={styles.orderCard}>
-                    {/* Order Top Bar with Status Badge */}
+                    {/* Order Top Bar with Status Badge & Delete History */}
                     <View style={styles.orderTopBar}>
                       <View style={{ flex: 1, marginRight: 8 }}>
                         <Text style={styles.orderShopName}>{item.shopName}</Text>
                         <Text style={styles.orderId}>Order #{item.id}</Text>
                       </View>
-                      <View style={[
-                        styles.statusBadgePill,
-                        isWaitingQuote ? styles.pillOrange :
-                        isPriceQuoted ? styles.pillEmerald :
-                        isApproved ? styles.pillBlue :
-                        isPacked ? styles.pillPurple :
-                        isDeliveredAndPaid ? styles.pillAmber :
-                        isCompleted ? styles.pillGreen :
-                        isRejected ? styles.pillRed : styles.pillGray
-                      ]}>
-                        <Text style={[
-                          styles.statusBadgePillText,
-                          isWaitingQuote ? { color: '#B45309' } :
-                          isPriceQuoted ? { color: '#047857' } :
-                          isApproved ? { color: '#1D4ED8' } :
-                          isPacked ? { color: '#6D28D9' } :
-                          isDeliveredAndPaid ? { color: '#C2410C' } :
-                          isCompleted ? { color: '#15803D' } :
-                          isRejected ? { color: '#B91C1C' } : { color: '#4B5563' }
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <View style={[
+                          styles.statusBadgePill,
+                          isWaitingQuote ? styles.pillOrange :
+                          isPriceQuoted ? styles.pillEmerald :
+                          isApproved ? styles.pillBlue :
+                          isPacked ? styles.pillPurple :
+                          isDeliveredAndPaid ? styles.pillAmber :
+                          isCompleted ? styles.pillGreen :
+                          isRejected ? styles.pillRed : styles.pillGray
                         ]}>
-                          {isWaitingQuote ? '⏳ Awaiting Quote' :
-                           isPriceQuoted ? '🏷️ Action Needed' :
-                           isApproved ? '✅ Approved' :
-                           isPacked ? '📦 Packed' :
-                           isDeliveredAndPaid ? '💰 Confirm Delivery' :
-                           isCompleted ? '🎉 Completed' :
-                           isRejected ? (item.status === 'DeclinedByCustomer' ? '❌ Not Approved' : item.status === 'RejectedByMerchant' ? '❌ Declined by Store' : '❌ Cancelled') : item.status}
-                        </Text>
+                          <Text style={[
+                            styles.statusBadgePillText,
+                            isWaitingQuote ? { color: '#B45309' } :
+                            isPriceQuoted ? { color: '#047857' } :
+                            isApproved ? { color: '#1D4ED8' } :
+                            isPacked ? { color: '#6D28D9' } :
+                            isDeliveredAndPaid ? { color: '#C2410C' } :
+                            isCompleted ? { color: '#15803D' } :
+                            isRejected ? { color: '#B91C1C' } : { color: '#4B5563' }
+                          ]}>
+                            {isWaitingQuote ? '⏳ Awaiting Quote' :
+                             isPriceQuoted ? '🏷️ Action Needed' :
+                             isApproved ? '✅ Approved' :
+                             isPacked ? '📦 Packed' :
+                             isDeliveredAndPaid ? '💰 Confirm Delivery' :
+                             isCompleted ? '🎉 Completed' :
+                             isRejected ? (item.status === 'DeclinedByCustomer' ? '❌ Not Approved' : item.status === 'RejectedByMerchant' ? '❌ Declined by Store' : '❌ Cancelled') : item.status}
+                          </Text>
+                        </View>
+                        {(isCompleted || isRejected) && (
+                          <TouchableOpacity
+                            style={styles.deleteOrderBtn}
+                            onPress={() => handleDeleteCustomerOrder(item.id)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Trash2 size={16} color="#FF3B30" />
+                          </TouchableOpacity>
+                        )}
                       </View>
                     </View>
 
@@ -1506,5 +1593,30 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#92400E',
     flex: 1,
+  },
+  clearHistoryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  clearHistoryBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#DC2626',
+  },
+  deleteOrderBtn: {
+    padding: 4,
+    borderRadius: 6,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
   }
 });
