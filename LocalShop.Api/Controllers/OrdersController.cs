@@ -142,6 +142,106 @@ public class OrdersController : ControllerBase
         };
     }
 
+    private static readonly HashSet<string> TerminalStatuses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Cancelled",
+        "DeclinedByCustomer",
+        "RejectedByMerchant",
+        "Completed"
+    };
+
+    private static readonly HashSet<string> AllKnownStatuses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Placed",
+        "QuoteRequested",
+        "PendingQuote",
+        "PriceQuoted",
+        "Approved",
+        "Processing",
+        "Packed",
+        "Out for Delivery",
+        "Delivered",
+        "DeliveredAndPaymentDone",
+        "Completed",
+        "Cancelled",
+        "DeclinedByCustomer",
+        "RejectedByMerchant"
+    };
+
+    private static string? NormalizeStatus(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status)) return null;
+        var clean = status.Trim();
+        foreach (var known in AllKnownStatuses)
+        {
+            if (string.Equals(known, clean, StringComparison.OrdinalIgnoreCase))
+            {
+                return known;
+            }
+        }
+        return null;
+    }
+
+    private static readonly Dictionary<string, HashSet<string>> AllowedTransitions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Placed"] = new(StringComparer.OrdinalIgnoreCase) { "PendingQuote", "PriceQuoted", "Approved", "Processing", "Cancelled", "DeclinedByCustomer", "RejectedByMerchant" },
+        ["QuoteRequested"] = new(StringComparer.OrdinalIgnoreCase) { "PendingQuote", "PriceQuoted", "Approved", "Processing", "Cancelled", "DeclinedByCustomer", "RejectedByMerchant" },
+        ["PendingQuote"] = new(StringComparer.OrdinalIgnoreCase) { "PriceQuoted", "Approved", "Processing", "Cancelled", "DeclinedByCustomer", "RejectedByMerchant" },
+        ["PriceQuoted"] = new(StringComparer.OrdinalIgnoreCase) { "PriceQuoted", "Approved", "Processing", "Cancelled", "DeclinedByCustomer", "RejectedByMerchant" },
+        ["Approved"] = new(StringComparer.OrdinalIgnoreCase) { "Processing", "Packed", "Out for Delivery", "DeliveredAndPaymentDone", "Cancelled", "RejectedByMerchant" },
+        ["Processing"] = new(StringComparer.OrdinalIgnoreCase) { "Packed", "Out for Delivery", "DeliveredAndPaymentDone", "Cancelled", "RejectedByMerchant" },
+        ["Packed"] = new(StringComparer.OrdinalIgnoreCase) { "Out for Delivery", "DeliveredAndPaymentDone", "Cancelled", "RejectedByMerchant" },
+        ["Out for Delivery"] = new(StringComparer.OrdinalIgnoreCase) { "Delivered", "DeliveredAndPaymentDone", "Completed" },
+        ["Delivered"] = new(StringComparer.OrdinalIgnoreCase) { "DeliveredAndPaymentDone", "Completed" },
+        ["DeliveredAndPaymentDone"] = new(StringComparer.OrdinalIgnoreCase) { "Completed" },
+        ["Completed"] = new(StringComparer.OrdinalIgnoreCase) { },
+        ["Cancelled"] = new(StringComparer.OrdinalIgnoreCase) { },
+        ["DeclinedByCustomer"] = new(StringComparer.OrdinalIgnoreCase) { },
+        ["RejectedByMerchant"] = new(StringComparer.OrdinalIgnoreCase) { }
+    };
+
+    private static bool IsValidTransition(string currentStatus, string targetStatus)
+    {
+        if (AllowedTransitions.TryGetValue(currentStatus, out var allowed))
+        {
+            return allowed.Contains(targetStatus);
+        }
+        return false;
+    }
+
+    private async Task RestoreCatalogStockAsync(Order order)
+    {
+        if (order.OrderType == "Catalog" && !order.StockRestored)
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var items = await _context.OrderItems.Where(i => i.OrderId == order.Id).ToListAsync();
+                foreach (var item in items)
+                {
+                    var product = await _context.Products.FindAsync(item.ProductId);
+                    if (product != null)
+                    {
+                        product.Stock += item.Quantity;
+                        product.IsAvailable = true;
+                    }
+                }
+                order.StockRestored = true;
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }
+        else
+        {
+            await _context.SaveChangesAsync();
+        }
+    }
+
     // GET: api/orders
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Order>>> GetAllOrders(
@@ -632,6 +732,16 @@ public class OrdersController : ControllerBase
             return Forbid();
         }
 
+        if (TerminalStatuses.Contains(order.Status))
+        {
+            return BadRequest(new { message = $"Cannot quote price. Order is already closed or completed ('{order.Status}')." });
+        }
+
+        if (order.Status is not ("Placed" or "QuoteRequested" or "PendingQuote" or "PriceQuoted"))
+        {
+            return BadRequest(new { message = $"Cannot quote price for order in '{order.Status}' state. Order is already approved or in fulfillment." });
+        }
+
         if (request.QuotedAmount <= 0)
         {
             return BadRequest(new { message = "Quoted amount must be greater than zero." });
@@ -700,6 +810,21 @@ public class OrdersController : ControllerBase
             return Forbid();
         }
 
+        if (TerminalStatuses.Contains(order.Status))
+        {
+            return BadRequest(new { message = $"Cannot accept quote. Order is already closed or completed ('{order.Status}')." });
+        }
+
+        if (order.Status is "Placed" or "QuoteRequested" or "PendingQuote")
+        {
+            return BadRequest(new { message = "Cannot approve quote before merchant has reviewed the list and quoted a price." });
+        }
+
+        if (order.Status is not "PriceQuoted")
+        {
+            return BadRequest(new { message = $"Cannot accept quote for order in '{order.Status}' state." });
+        }
+
         order.PaymentMethod = string.IsNullOrWhiteSpace(request?.PaymentMethod) ? "Direct Transfer" : request.PaymentMethod;
         order.Status = "Approved";
 
@@ -731,27 +856,60 @@ public class OrdersController : ControllerBase
             return Forbid();
         }
 
-        if (order.Status is "Cancelled" or "RejectedByMerchant" or "DeclinedByCustomer")
+        if (TerminalStatuses.Contains(order.Status))
         {
-            return BadRequest(new { message = "Order is already cancelled or rejected." });
+            return BadRequest(new { message = $"Cannot reject or decline order. Order is already in terminal state '{order.Status}'." });
+        }
+
+        if (order.Status is "Delivered" or "DeliveredAndPaymentDone")
+        {
+            return BadRequest(new { message = "Cannot reject or decline an order that has already been delivered." });
         }
 
         string role = request?.Role?.Trim().ToLower() ?? string.Empty;
-        string reason = request?.Reason?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(role))
+        {
+            role = IsMerchant ? "merchant" : (IsCustomer ? "customer" : "admin");
+        }
 
         if (role == "customer")
         {
+            if (!IsAdmin && !string.Equals(CallerPhone, order.CustomerPhone, StringComparison.OrdinalIgnoreCase))
+            {
+                return Forbid();
+            }
+
+            if (order.Status is not ("Placed" or "QuoteRequested" or "PendingQuote" or "PriceQuoted"))
+            {
+                return BadRequest(new { message = $"Customer cannot decline order in '{order.Status}' state. Order is already processing or dispatched." });
+            }
+
             order.Status = "DeclinedByCustomer";
         }
         else if (role == "merchant")
         {
+            if (!CanManageStore(order.ShopName))
+            {
+                return Forbid();
+            }
+
+            if (order.Status is not ("Placed" or "QuoteRequested" or "PendingQuote" or "PriceQuoted" or "Approved" or "Processing" or "Packed"))
+            {
+                return BadRequest(new { message = $"Merchant cannot reject order in '{order.Status}' state." });
+            }
+
             order.Status = "RejectedByMerchant";
         }
         else
         {
+            if (!IsAdmin)
+            {
+                return Forbid();
+            }
             order.Status = "Cancelled";
         }
 
+        string reason = request?.Reason?.Trim() ?? string.Empty;
         if (!string.IsNullOrEmpty(reason))
         {
             order.ReviewComment = string.IsNullOrEmpty(order.ReviewComment)
@@ -764,36 +922,7 @@ public class OrdersController : ControllerBase
             order.RefundStatus = "Pending";
         }
 
-        // Restore catalog item stock in Products table idempotently within a transaction
-        if (order.OrderType == "Catalog" && !order.StockRestored)
-        {
-            using var transaction = await _context.Database.BeginTransactionAsync();
-            try
-            {
-                var items = await _context.OrderItems.Where(i => i.OrderId == id).ToListAsync();
-                foreach (var item in items)
-                {
-                    var product = await _context.Products.FindAsync(item.ProductId);
-                    if (product != null)
-                    {
-                        product.Stock += item.Quantity;
-                        product.IsAvailable = true;
-                    }
-                }
-                order.StockRestored = true;
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-            }
-            catch
-            {
-                await transaction.RollbackAsync();
-                throw;
-            }
-        }
-        else
-        {
-            await _context.SaveChangesAsync();
-        }
+        await RestoreCatalogStockAsync(order);
 
         // Broadcast to Real-Time SignalR Hub (Sanitized without DeliveryOtp)
         await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order = StripOtpForBroadcast(order) });
@@ -815,6 +944,16 @@ public class OrdersController : ControllerBase
             return Forbid();
         }
 
+        if (TerminalStatuses.Contains(order.Status))
+        {
+            return BadRequest(new { message = $"Cannot mark packed. Order is already closed or completed ('{order.Status}')." });
+        }
+
+        if (order.Status is not ("Approved" or "Processing"))
+        {
+            return BadRequest(new { message = $"Cannot mark order as packed when current state is '{order.Status}'. Order must be approved first." });
+        }
+
         order.Status = "Packed";
         await _context.SaveChangesAsync();
 
@@ -831,9 +970,19 @@ public class OrdersController : ControllerBase
         var order = await _context.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == id);
         if (order == null) return NotFound(new { message = "Order not found." });
 
-        if (!CanManageStore(order.ShopName) && (!IsDelivery || !string.Equals(CallerPhone, order.DeliveryPartnerPhone, StringComparison.OrdinalIgnoreCase)))
+        if (!CanManageStore(order.ShopName) && (!IsDelivery || !string.Equals(CallerPhone, order.DeliveryPartnerPhone, StringComparison.OrdinalIgnoreCase)) && !IsAdmin)
         {
             return Forbid();
+        }
+
+        if (TerminalStatuses.Contains(order.Status))
+        {
+            return BadRequest(new { message = $"Cannot mark delivered and paid. Order is already closed or completed ('{order.Status}')." });
+        }
+
+        if (order.Status is not ("Delivered" or "Out for Delivery" or "Packed" or "Processing" or "Approved"))
+        {
+            return BadRequest(new { message = $"Cannot mark delivered and paid for order in '{order.Status}' state." });
         }
 
         order.Status = "DeliveredAndPaymentDone";
@@ -857,6 +1006,21 @@ public class OrdersController : ControllerBase
             return Forbid();
         }
 
+        if (order.Status is "Completed")
+        {
+            return Ok(SanitizeOrder(order)); // idempotent
+        }
+
+        if (TerminalStatuses.Contains(order.Status))
+        {
+            return BadRequest(new { message = $"Cannot confirm order completion. Order is already in terminal state '{order.Status}'." });
+        }
+
+        if (order.Status is not ("Delivered" or "DeliveredAndPaymentDone" or "Out for Delivery"))
+        {
+            return BadRequest(new { message = $"Cannot confirm completion for order in '{order.Status}' state. Order must be delivered first." });
+        }
+
         order.Status = "Completed";
         await _context.SaveChangesAsync();
 
@@ -865,7 +1029,7 @@ public class OrdersController : ControllerBase
     }
 
     // PUT: api/orders/{id}/status
-    // Updates order processing state
+    // Updates order processing state with strict FSM validation
     [HttpPut("{id}/status")]
     [Authorize(Roles = "Merchant,Admin")]
     public async Task<IActionResult> UpdateStatus(string id, [FromBody] UpdateStatusRequest request)
@@ -878,8 +1042,52 @@ public class OrdersController : ControllerBase
             return Forbid();
         }
 
-        order.Status = request.Status;
-        await _context.SaveChangesAsync();
+        if (string.IsNullOrWhiteSpace(request?.Status))
+        {
+            return BadRequest(new { message = "Status cannot be empty." });
+        }
+
+        var targetStatus = NormalizeStatus(request.Status);
+        if (targetStatus == null)
+        {
+            return BadRequest(new { message = $"Unknown or invalid status '{request.Status}'." });
+        }
+
+        if (string.Equals(order.Status, targetStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            return Ok(SanitizeOrder(order)); // idempotent
+        }
+
+        if (TerminalStatuses.Contains(order.Status))
+        {
+            return BadRequest(new { message = $"Cannot modify order. Current status '{order.Status}' is a final terminal state." });
+        }
+
+        if (!IsValidTransition(order.Status, targetStatus))
+        {
+            return BadRequest(new { message = $"Invalid status transition from '{order.Status}' to '{targetStatus}'." });
+        }
+
+        // Bypassing delivery OTP verification is forbidden
+        if (targetStatus == "Delivered" && !string.IsNullOrEmpty(order.DeliveryOtp))
+        {
+            return BadRequest(new { message = "Transitioning to 'Delivered' requires customer OTP verification via the /verify-otp-deliver endpoint." });
+        }
+
+        order.Status = targetStatus;
+
+        if (targetStatus is "Cancelled" or "RejectedByMerchant")
+        {
+            if (order.PaymentMethod != "Cash" && order.TotalAmount > 0)
+            {
+                order.RefundStatus = "Pending";
+            }
+            await RestoreCatalogStockAsync(order);
+        }
+        else
+        {
+            await _context.SaveChangesAsync();
+        }
 
         // Broadcast to Real-Time SignalR Hub
         await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order = StripOtpForBroadcast(order) });
@@ -917,7 +1125,7 @@ public class OrdersController : ControllerBase
     }
 
     // PUT: api/orders/{id}/cancel
-    // Cancels order, triggers refund, and restores catalog stock
+    // Cancels order, triggers refund, and restores catalog stock with strict state and authorization validation
     [HttpPut("{id}/cancel")]
     [Authorize(Roles = "Customer,Merchant,Admin")]
     public async Task<IActionResult> CancelOrder(string id)
@@ -930,9 +1138,20 @@ public class OrdersController : ControllerBase
             return Forbid();
         }
 
-        if (order.Status is "Cancelled" or "RejectedByMerchant" or "DeclinedByCustomer")
+        if (TerminalStatuses.Contains(order.Status))
         {
-            return BadRequest(new { message = "Order is already cancelled or rejected." });
+            return BadRequest(new { message = $"Order is already closed or completed ('{order.Status}') and cannot be cancelled." });
+        }
+
+        if (order.Status is "Delivered" or "DeliveredAndPaymentDone")
+        {
+            return BadRequest(new { message = "Cannot cancel an order that has already been delivered." });
+        }
+
+        // Customer can only cancel prior to packing or dispatch
+        if (IsCustomer && !IsAdmin && order.Status is "Packed" or "Out for Delivery")
+        {
+            return BadRequest(new { message = $"Customer cannot cancel an order once it is '{order.Status}'. Please contact the store directly." });
         }
 
         order.Status = "Cancelled";
@@ -941,36 +1160,7 @@ public class OrdersController : ControllerBase
             order.RefundStatus = "Pending";
         }
 
-        // Restore catalog item stock in Products table idempotently within a transaction
-        if (order.OrderType == "Catalog" && !order.StockRestored)
-        {
-            using var transaction = await _context.Database.BeginTransactionAsync();
-            try
-            {
-                var items = await _context.OrderItems.Where(i => i.OrderId == id).ToListAsync();
-                foreach (var item in items)
-                {
-                    var product = await _context.Products.FindAsync(item.ProductId);
-                    if (product != null)
-                    {
-                        product.Stock += item.Quantity;
-                        product.IsAvailable = true;
-                    }
-                }
-                order.StockRestored = true;
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-            }
-            catch
-            {
-                await transaction.RollbackAsync();
-                throw;
-            }
-        }
-        else
-        {
-            await _context.SaveChangesAsync();
-        }
+        await RestoreCatalogStockAsync(order);
 
         // Broadcast to Real-Time SignalR Hub (Sanitized without DeliveryOtp)
         await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order = StripOtpForBroadcast(order) });
@@ -992,6 +1182,16 @@ public class OrdersController : ControllerBase
             return Forbid();
         }
 
+        if (TerminalStatuses.Contains(order.Status))
+        {
+            return BadRequest(new { message = $"Cannot assign delivery driver. Order is already closed or completed ('{order.Status}')." });
+        }
+
+        if (order.Status is not ("Packed" or "Approved" or "Processing"))
+        {
+            return BadRequest(new { message = $"Cannot assign driver for order in '{order.Status}' state. Order must be approved/packed first." });
+        }
+
         order.DeliveryPartnerName = request.DriverName;
         order.DeliveryPartnerPhone = request.DriverPhone;
         order.Status = "Out for Delivery";
@@ -1011,9 +1211,19 @@ public class OrdersController : ControllerBase
         var order = await _context.Orders.FindAsync(id);
         if (order == null) return NotFound(new { message = "Order not found." });
 
-        if (!CanManageStore(order.ShopName) && (!IsDelivery || !string.Equals(CallerPhone, order.DeliveryPartnerPhone, StringComparison.OrdinalIgnoreCase)))
+        if (!CanManageStore(order.ShopName) && (!IsDelivery || !string.Equals(CallerPhone, order.DeliveryPartnerPhone, StringComparison.OrdinalIgnoreCase)) && !IsAdmin)
         {
             return Forbid();
+        }
+
+        if (TerminalStatuses.Contains(order.Status))
+        {
+            return BadRequest(new { message = $"Cannot verify delivery. Order is already closed or completed ('{order.Status}')." });
+        }
+
+        if (order.Status is not ("Out for Delivery" or "Packed" or "Processing" or "Approved"))
+        {
+            return BadRequest(new { message = $"Cannot verify delivery for order in '{order.Status}' state." });
         }
 
         if (string.IsNullOrWhiteSpace(request.Otp) || order.DeliveryOtp.Trim() != request.Otp.Trim())
@@ -1040,6 +1250,11 @@ public class OrdersController : ControllerBase
         if (!IsAdmin && !string.Equals(CallerPhone, order.CustomerPhone, StringComparison.OrdinalIgnoreCase))
         {
             return Forbid();
+        }
+
+        if (order.Status is not ("Delivered" or "DeliveredAndPaymentDone" or "Completed"))
+        {
+            return BadRequest(new { message = $"Cannot rate order before delivery. Current status is '{order.Status}'." });
         }
 
         order.Rating = Math.Clamp(request.Rating, 1, 5);
