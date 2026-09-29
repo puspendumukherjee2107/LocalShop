@@ -33,7 +33,20 @@ builder.Services.AddCors(options =>
     });
 });
 
-var jwtKey = Environment.GetEnvironmentVariable("LOCALSHOP_JWT_KEY") ?? builder.Configuration["Jwt:Key"] ?? "LocalShop-Dev-Key-Replace-In-Production-2026!";
+var jwtKey = Environment.GetEnvironmentVariable("LOCALSHOP_JWT_KEY") ?? builder.Configuration["Jwt:Key"];
+if (string.IsNullOrWhiteSpace(jwtKey))
+{
+    if (builder.Environment.IsProduction())
+    {
+        throw new InvalidOperationException("CRITICAL CONFIGURATION ERROR: A secure JWT signing key must be set via the LOCALSHOP_JWT_KEY environment variable in production.");
+    }
+    jwtKey = "LocalShop-Dev-Strict-Key-2026-Secure-Random!";
+}
+else if (builder.Environment.IsProduction() && (jwtKey.Contains("Replace-In-Production") || jwtKey.Contains("Change-In-Production") || jwtKey.Length < 32))
+{
+    throw new InvalidOperationException("CRITICAL SECURITY ERROR: The configured JWT signing key is insecure or uses default placeholder text.");
+}
+
 var jwtIssuer = Environment.GetEnvironmentVariable("LOCALSHOP_JWT_ISSUER") ?? builder.Configuration["Jwt:Issuer"] ?? "LocalShop.Api";
 var jwtAudience = Environment.GetEnvironmentVariable("LOCALSHOP_JWT_AUDIENCE") ?? builder.Configuration["Jwt:Audience"] ?? "LocalShop.Mobile";
 
@@ -88,7 +101,22 @@ try
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<StoreDbContext>();
-    db.Database.EnsureCreated();
+    try
+    {
+        if (db.Database.GetPendingMigrations().Any())
+        {
+            db.Database.Migrate();
+        }
+        else
+        {
+            db.Database.EnsureCreated();
+        }
+    }
+    catch
+    {
+        db.Database.EnsureCreated();
+    }
+
     try
     {
         db.Database.ExecuteSqlRaw("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
@@ -103,7 +131,14 @@ try
     {
         Console.WriteLine($"[DB Note] Startup lock: {ex.Message}");
     }
-    SeedDemoAccounts(app.Services);
+
+    var allowDemoSeeding = app.Environment.IsDevelopment() || 
+                           app.Configuration.GetValue<bool>("EnableDemoSeeding", false) ||
+                           string.Equals(Environment.GetEnvironmentVariable("ALLOW_DEMO_SEEDING"), "true", StringComparison.OrdinalIgnoreCase);
+    if (allowDemoSeeding)
+    {
+        SeedDemoAccounts(app.Services);
+    }
 }
 catch (Exception ex)
 {
@@ -197,6 +232,11 @@ static void EnsureOrderColumns(StoreDbContext db)
     {
         db.Database.ExecuteSqlRaw("ALTER TABLE \"Orders\" ADD COLUMN \"IsDeletedByMerchant\" INTEGER NOT NULL DEFAULT 0;");
     }
+
+    if (!columns.Contains("StockRestored"))
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"Orders\" ADD COLUMN \"StockRestored\" INTEGER NOT NULL DEFAULT 0;");
+    }
 }
 
 static void EnsureProductColumns(StoreDbContext db)
@@ -257,6 +297,13 @@ static void EnsureStoreProfileColumns(StoreDbContext db)
     {
         db.Database.ExecuteSqlRaw("ALTER TABLE \"StoreProfiles\" ADD COLUMN \"OwnerName\" TEXT NULL;");
     }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw("UPDATE \"StoreProfiles\" SET \"Phone\" = '9876500000' WHERE \"Phone\" IS NULL;");
+        db.Database.ExecuteSqlRaw("UPDATE \"StoreProfiles\" SET \"OwnerName\" = \"ShopName\" WHERE \"OwnerName\" IS NULL;");
+    }
+    catch { }
 }
 
 static void SeedDemoAccounts(IServiceProvider services)
@@ -299,11 +346,7 @@ static void EnsureDemoUser(StoreDbContext db, string role, string phone, string 
         return;
     }
 
-    user.Name = name;
-    user.PasswordHash = PasswordHasher.HashPassword(password);
-    user.Address = address;
-    user.Status = "Active";
-    user.Role = role;
+    // Do NOT overwrite existing user's password, status, or details on restart
 }
 
 static void EnsureOrderMessagesTable(StoreDbContext db)

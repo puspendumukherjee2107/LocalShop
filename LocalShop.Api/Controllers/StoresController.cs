@@ -10,7 +10,6 @@ namespace LocalShop.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[AllowAnonymous]
 public class StoresController : ControllerBase
 {
     private readonly StoreDbContext _context;
@@ -22,8 +21,18 @@ public class StoresController : ControllerBase
         _hubContext = hubContext;
     }
 
+    private bool CanManageStore(string shopName)
+    {
+        if (User.IsInRole("Admin")) return true;
+        var callerName = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
+        var callerPhone = User.FindFirst("phone")?.Value;
+        return string.Equals(callerName, shopName, StringComparison.OrdinalIgnoreCase) ||
+               _context.StoreProfiles.Any(s => s.ShopName.ToLower() == shopName.ToLower() && (s.Phone == callerPhone || s.OwnerName == callerName));
+    }
+
     // GET: api/stores
     [HttpGet]
+    [AllowAnonymous]
     public async Task<IActionResult> GetAllStores()
     {
         var stores = await _context.StoreProfiles.ToListAsync();
@@ -56,6 +65,7 @@ public class StoresController : ControllerBase
 
     // GET: api/stores/profile?shopName=Tarama Stores
     [HttpGet("profile")]
+    [AllowAnonymous]
     public async Task<IActionResult> GetStoreProfile([FromQuery] string shopName = "Tarama Stores")
     {
         var profile = await _context.StoreProfiles.FirstOrDefaultAsync(s => s.ShopName == shopName);
@@ -83,8 +93,14 @@ public class StoresController : ControllerBase
 
     // PUT: api/stores/profile
     [HttpPut("profile")]
+    [Authorize(Roles = "Merchant,Admin")]
     public async Task<IActionResult> UpdateStoreProfile([FromBody] StoreProfile updateData)
     {
+        if (!CanManageStore(updateData.ShopName))
+        {
+            return Forbid();
+        }
+
         var profile = await _context.StoreProfiles.FirstOrDefaultAsync(s => s.ShopName == updateData.ShopName);
         if (profile == null)
         {
@@ -97,6 +113,8 @@ public class StoresController : ControllerBase
             profile.OperatingHours = updateData.OperatingHours;
             profile.DeliveryRadiusKm = updateData.DeliveryRadiusKm;
             profile.MinOrderAmount = updateData.MinOrderAmount;
+            if (!string.IsNullOrEmpty(updateData.Phone)) profile.Phone = updateData.Phone;
+            if (!string.IsNullOrEmpty(updateData.OwnerName)) profile.OwnerName = updateData.OwnerName;
             profile.UpdatedAt = DateTime.UtcNow;
         }
 
@@ -106,8 +124,14 @@ public class StoresController : ControllerBase
 
     // PUT: api/stores/toggle-open
     [HttpPut("toggle-open")]
+    [Authorize(Roles = "Merchant,Admin")]
     public async Task<IActionResult> ToggleStoreOpen([FromQuery] string shopName = "Tarama Stores")
     {
+        if (!CanManageStore(shopName))
+        {
+            return Forbid();
+        }
+
         var profile = await _context.StoreProfiles.FirstOrDefaultAsync(s => s.ShopName == shopName);
         if (profile == null)
         {
@@ -126,8 +150,14 @@ public class StoresController : ControllerBase
 
     // POST: api/stores/submit-kyc
     [HttpPost("submit-kyc")]
+    [Authorize(Roles = "Merchant,Admin")]
     public async Task<IActionResult> SubmitKyc([FromBody] KycSubmission submission)
     {
+        if (!CanManageStore(submission.ShopName))
+        {
+            return Forbid();
+        }
+
         var profile = await _context.StoreProfiles.FirstOrDefaultAsync(s => s.ShopName == submission.ShopName);
         if (profile == null)
         {

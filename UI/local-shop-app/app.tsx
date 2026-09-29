@@ -7,11 +7,14 @@ import SimpleMerchantScreen from './src/screens/SimpleMerchantScreen';
 // import CustomerScreen from './src/screens/CustomerScreen';
 // import InventoryScreen from './src/screens/InventoryScreen';
 // import DeliveryPartnerScreen from './src/screens/DeliveryPartnerScreen';
-// import AdminDashboardScreen from './src/screens/AdminDashboardScreen';
+import AdminDashboardScreen from './src/screens/AdminDashboardScreen';
+import AdminLoginScreen from './src/screens/AdminLoginScreen';
+import { setAuthToken } from './src/services/apiConfig';
 
 export default function App() {
-  // Simple role switcher: 'customer' or 'merchant'
-  const [userRole, setUserRole] = useState<'customer' | 'merchant'>('customer');
+  // Role switcher: 'customer' | 'merchant' | 'admin'
+  const [userRole, setUserRole] = useState<'customer' | 'merchant' | 'admin'>('customer');
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -30,7 +33,7 @@ export default function App() {
             onPress={() => setUserRole('customer')}
           >
             <Text style={[styles.toggleText, userRole === 'customer' && styles.activeText]}>
-              🛒 Customer Mode
+              🛒 Customer
             </Text>
           </TouchableOpacity>
           
@@ -39,7 +42,16 @@ export default function App() {
             onPress={() => setUserRole('merchant')}
           >
             <Text style={[styles.toggleText, userRole === 'merchant' && styles.activeText]}>
-              🏪 Merchant Mode
+              🏪 Merchant
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.toggleButton, userRole === 'admin' && styles.activeToggle]}
+            onPress={() => setUserRole('admin')}
+          >
+            <Text style={[styles.toggleText, userRole === 'admin' && styles.activeText]}>
+              🛡️ Admin
             </Text>
           </TouchableOpacity>
         </View>
@@ -49,8 +61,17 @@ export default function App() {
       <View style={styles.content}>
         {userRole === 'customer' ? (
           <SimpleCustomerScreen />
-        ) : (
+        ) : userRole === 'merchant' ? (
           <SimpleMerchantScreen />
+        ) : !isAdminLoggedIn ? (
+          <AdminLoginScreen onAdminAuth={() => setIsAdminLoggedIn(true)} />
+        ) : (
+          <AdminDashboardScreen 
+            onLogout={() => {
+              setAuthToken(undefined);
+              setIsAdminLoggedIn(false);
+            }} 
+          />
         )}
       </View>
     </SafeAreaView>
@@ -109,7 +130,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   toggleText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: '#64748B',
   },

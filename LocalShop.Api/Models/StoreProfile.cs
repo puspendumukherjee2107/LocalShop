@@ -11,7 +11,7 @@ public class StoreProfile
     public decimal MinOrderAmount { get; set; } = 150.0m;
     public string TradeLicense { get; set; } = "TRD-992817";
     public string KycStatus { get; set; } = "Approved"; // Pending, Approved, Rejected
-    public string Phone { get; set; } = string.Empty;
-    public string OwnerName { get; set; } = string.Empty;
+    public string? Phone { get; set; } = "9876500000";
+    public string? OwnerName { get; set; } = "Store Owner";
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

@@ -8,7 +8,7 @@ namespace LocalShop.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = "Merchant,Admin")]
 public class SettlementsController : ControllerBase
 {
     private readonly StoreDbContext _context;
@@ -18,18 +18,43 @@ public class SettlementsController : ControllerBase
         _context = context;
     }
 
+    private bool CanManageStore(string shopName)
+    {
+        if (User.IsInRole("Admin")) return true;
+        var callerName = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
+        var callerPhone = User.FindFirst("phone")?.Value;
+        return string.Equals(callerName, shopName, StringComparison.OrdinalIgnoreCase) ||
+               _context.StoreProfiles.Any(s => s.ShopName.ToLower() == shopName.ToLower() && (s.Phone == callerPhone || s.OwnerName == callerName));
+    }
+
+    private async Task<decimal> CalculateAvailableBalance(string shopName)
+    {
+        var deliveredSales = await _context.Orders
+            .Where(o => o.ShopName.ToLower() == shopName.ToLower() && 
+                        (o.Status == "Delivered" || o.Status == "Completed" || o.Status == "DeliveredAndPaymentDone") && 
+                        o.PaymentMethod == "UPI")
+            .SumAsync(o => (decimal?)o.TotalAmount) ?? 0m;
+
+        var pastPayouts = await _context.Settlements
+            .Where(s => s.ShopName.ToLower() == shopName.ToLower() && (s.Status == "Settled" || s.Status == "Processing"))
+            .SumAsync(s => (decimal?)s.Amount) ?? 0m;
+
+        // Base ledger credit (₹58,250) + live delivered digital sales minus all requested and settled payouts
+        var grossAvailable = 58250m + deliveredSales;
+        return Math.Max(0, grossAvailable - pastPayouts);
+    }
+
     // GET: api/settlements?shopName=Tarama Stores
     [HttpGet]
     public async Task<IActionResult> GetSettlementOverview([FromQuery] string shopName = "Tarama Stores")
     {
-        // 1. Calculate Gross Digital Sales Delivered
-        var digitalDeliveredSales = await _context.Orders
-            .Where(o => o.ShopName == shopName && o.Status == "Delivered" && o.PaymentMethod == "UPI")
-            .SumAsync(o => (decimal?)o.TotalAmount) ?? 0m;
+        if (!CanManageStore(shopName))
+        {
+            return Forbid();
+        }
 
-        // 2. Calculate Total Settled Funds
         var pastSettlements = await _context.Settlements
-            .Where(s => s.ShopName == shopName)
+            .Where(s => s.ShopName.ToLower() == shopName.ToLower())
             .OrderByDescending(s => s.DispatchedAt)
             .ToListAsync();
 
@@ -45,10 +70,7 @@ public class SettlementsController : ControllerBase
             pastSettlements = seed;
         }
 
-        var totalPayouts = pastSettlements.Sum(s => s.Amount);
-        
-        // Base seed balance for demonstration + live digital sales
-        var withdrawableBalance = Math.Max(0, 14850m + digitalDeliveredSales);
+        var withdrawableBalance = await CalculateAvailableBalance(shopName);
 
         return Ok(new
         {
@@ -62,9 +84,23 @@ public class SettlementsController : ControllerBase
     [HttpPost("payout")]
     public async Task<IActionResult> RequestPayout([FromBody] PayoutRequest request)
     {
+        if (!CanManageStore(request.ShopName))
+        {
+            return Forbid();
+        }
+
         if (request.Amount <= 0)
         {
             return BadRequest(new { message = "Payout amount must be greater than zero." });
+        }
+
+        var availableBalance = await CalculateAvailableBalance(request.ShopName);
+        if (request.Amount > availableBalance)
+        {
+            return BadRequest(new
+            {
+                message = $"Insufficient withdrawable balance. Available: ₹{availableBalance}, Requested: ₹{request.Amount}"
+            });
         }
 
         var settlement = new Settlement
@@ -83,7 +119,8 @@ public class SettlementsController : ControllerBase
         return Ok(new
         {
             message = "Payout initiated successfully. Funds will clear within 2-4 hours.",
-            settlement
+            settlement,
+            remainingBalance = availableBalance - request.Amount
         });
     }
 }

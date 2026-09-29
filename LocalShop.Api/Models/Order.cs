@@ -24,5 +24,6 @@ public class Order
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public bool IsDeletedByCustomer { get; set; } = false;
     public bool IsDeletedByMerchant { get; set; } = false;
+    public bool StockRestored { get; set; } = false;
     public List<OrderItem> Items { get; set; } = new();
 }

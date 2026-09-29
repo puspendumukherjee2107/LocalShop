@@ -14,15 +14,29 @@ public class OrderHub : Hub
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, shopName);
     }
 
+    public async Task JoinOrderGroup(string orderId)
+    {
+        await Groups.AddToGroupAsync(Context.ConnectionId, $"order_{orderId}");
+    }
+
+    public async Task LeaveOrderGroup(string orderId)
+    {
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"order_{orderId}");
+    }
+
     public async Task SendOrderMessage(string orderId, string senderRole, string senderName, string messageText)
     {
-        await Clients.All.SendAsync("ReceiveOrderMessage", new
+        var payload = new
         {
             orderId,
             senderRole,
             senderName,
             messageText,
             createdAt = DateTime.UtcNow
-        });
+        };
+
+        // Send to targeted order group and all listeners subscribed
+        await Clients.Group($"order_{orderId}").SendAsync("ReceiveOrderMessage", payload);
+        await Clients.All.SendAsync("ReceiveOrderMessage", payload);
     }
 }

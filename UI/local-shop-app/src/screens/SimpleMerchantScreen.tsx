@@ -77,6 +77,7 @@ interface MerchantCalcItem {
   name: string;
   price: string;
   isAvailable: boolean;
+  quantity?: number;
 }
 
 interface SimpleMerchantScreenProps {
@@ -368,7 +369,8 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
       return order.items.map(it => ({
         name: it.productName,
         price: it.unitPrice > 0 ? it.unitPrice.toString() : '',
-        isAvailable: it.isAvailable !== false
+        isAvailable: it.isAvailable !== false,
+        quantity: it.quantity > 0 ? it.quantity : 1
       }));
     }
     if (order.itemsText) {
@@ -379,11 +381,12 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
         .map(line => ({
           name: line,
           price: '',
-          isAvailable: true
+          isAvailable: true,
+          quantity: 1
         }));
       if (parsed.length > 0) return parsed;
     }
-    return [{ name: '', price: '', isAvailable: true }];
+    return [{ name: '', price: '', isAvailable: true, quantity: 1 }];
   }, [calcItems]);
 
   const recalculateTotal = (orderId: string, items: MerchantCalcItem[], overrideDiscount?: string) => {
@@ -391,7 +394,8 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
       .filter(item => item.isAvailable)
       .reduce((sum, item) => {
         const p = parseFloat(item.price);
-        return sum + (isNaN(p) ? 0 : p);
+        const q = item.quantity && item.quantity > 0 ? item.quantity : 1;
+        return sum + (isNaN(p) ? 0 : p * q);
       }, 0);
     const discountStr = overrideDiscount !== undefined ? overrideDiscount : (discountInputs[orderId] || '');
     const disc = parseFloat(discountStr) || 0;
@@ -477,7 +481,7 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
     if (isNaN(amount) || amount <= 0) {
       const subtotal = validItems
         .filter(i => i.isAvailable)
-        .reduce((sum, i) => sum + (parseFloat(i.price) || 0), 0);
+        .reduce((sum, i) => sum + (parseFloat(i.price) || 0) * (i.quantity && i.quantity > 0 ? i.quantity : 1), 0);
       amount = Math.max(0, subtotal - discountVal);
     }
 
@@ -490,7 +494,7 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
       name: i.name.trim(),
       price: i.isAvailable ? (parseFloat(i.price) || 0) : 0,
       isAvailable: i.isAvailable,
-      quantity: 1
+      quantity: i.quantity && i.quantity > 0 ? i.quantity : 1
     }));
 
     setProcessingOrderId(orderId);
@@ -861,7 +865,7 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
             const unavailCount = orderCalcItems.length - availCount;
             const autoTotal = orderCalcItems
               .filter(ci => ci.isAvailable)
-              .reduce((sum, ci) => sum + (parseFloat(ci.price) || 0), 0);
+              .reduce((sum, ci) => sum + (parseFloat(ci.price) || 0) * (ci.quantity && ci.quantity > 0 ? ci.quantity : 1), 0);
             const currentDiscount = parseFloat(discountInputs[item.id] || '0') || 0;
             const netTotal = Math.max(0, autoTotal - currentDiscount);
             const displayTotal = quoteInputs[item.id] !== undefined ? quoteInputs[item.id] : (netTotal > 0 ? netTotal.toString() : '');
@@ -1041,6 +1045,11 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
                                   value={ci.price}
                                   onChangeText={p => handleUpdateItemPrice(item, idx, p)}
                                 />
+                                {ci.quantity && ci.quantity > 1 ? (
+                                  <Text style={{ fontSize: 12, color: '#6B7280', marginLeft: 6, fontWeight: '600' }}>
+                                    × {ci.quantity} {ci.price && !isNaN(parseFloat(ci.price)) ? `(₹${(parseFloat(ci.price) * ci.quantity).toFixed(0)})` : ''}
+                                  </Text>
+                                ) : null}
                               </View>
                             ) : (
                               <View style={{ flexDirection: 'row', alignItems: 'center' }}>

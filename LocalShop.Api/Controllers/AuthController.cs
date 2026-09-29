@@ -27,37 +27,57 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
-    public async Task<IActionResult> Register([FromBody] User registrationData)
+    public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
-        if (string.IsNullOrWhiteSpace(registrationData.Phone) || string.IsNullOrWhiteSpace(registrationData.PasswordHash))
+        if (string.IsNullOrWhiteSpace(request.Phone) || string.IsNullOrWhiteSpace(request.Password))
         {
             return BadRequest(new { message = "Phone and password are required." });
         }
 
-        if (registrationData.Phone.Length < 10)
+        if (request.Phone.Length < 10)
         {
             return BadRequest(new { message = "Phone number must be at least 10 digits." });
         }
 
-        if (registrationData.PasswordHash.Length < 8)
+        if (request.Password.Length < 8)
         {
             return BadRequest(new { message = "Password must be at least 8 characters long." });
         }
 
-        if (await _context.Users.AnyAsync(u => u.Phone == registrationData.Phone && u.Role == registrationData.Role))
+        var normalizedRole = string.IsNullOrWhiteSpace(request.Role) ? "Customer" : request.Role.Trim();
+        if (string.Equals(normalizedRole, "Admin", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { message = "Administrative accounts cannot be self-registered." });
+        }
+
+        if (!string.Equals(normalizedRole, "Customer", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(normalizedRole, "Merchant", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { message = "Invalid role specified. Only Customer or Merchant accounts are permitted." });
+        }
+
+        if (await _context.Users.AnyAsync(u => u.Phone == request.Phone && u.Role == normalizedRole))
         {
             return BadRequest(new { message = "This mobile number is already registered." });
         }
 
-        registrationData.PasswordHash = PasswordHasher.HashPassword(registrationData.PasswordHash);
+        var user = new User
+        {
+            Name = string.IsNullOrWhiteSpace(request.Name) ? (normalizedRole == "Merchant" ? "Store Owner" : "Customer") : request.Name.Trim(),
+            Phone = request.Phone.Trim(),
+            Role = normalizedRole,
+            Address = request.Address?.Trim() ?? string.Empty,
+            PasswordHash = PasswordHasher.HashPassword(request.Password),
+            Status = "Active"
+        };
 
-        _context.Users.Add(registrationData);
+        _context.Users.Add(user);
         await _context.SaveChangesAsync();
 
         return Ok(new
         {
             message = "Account provisioned successfully.",
-            user = new { registrationData.Id, registrationData.Name, registrationData.Phone, registrationData.Role }
+            user = new { user.Id, user.Name, user.Phone, user.Role }
         });
     }
 
@@ -134,19 +154,17 @@ public class AuthController : ControllerBase
         }
 
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Phone == phone && u.Role == role);
-        if (user == null)
+        if (user != null)
         {
-            return NotFound(new { message = "No account found registered with this mobile number." });
+            var otp = Random.Shared.Next(100000, 999999).ToString();
+            var key = $"{role}:{phone}";
+            _resetOtps[key] = (otp, DateTime.UtcNow.AddMinutes(5));
+            Console.WriteLine($"[Security Notice] Password reset OTP generated for {phone} ({role})");
         }
-
-        var otp = Random.Shared.Next(100000, 999999).ToString();
-        var key = $"{role}:{phone}";
-        _resetOtps[key] = (otp, DateTime.UtcNow.AddMinutes(5));
 
         return Ok(new
         {
-            message = $"Verification code sent to registered mobile number {phone}.",
-            otp = otp
+            message = $"If an account exists for {phone}, a verification code has been dispatched."
         });
     }
 
@@ -202,10 +220,18 @@ public class AuthController : ControllerBase
     [HttpPut("profile")]
     public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
     {
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Phone == request.Phone);
+        var callerPhone = User.FindFirst("phone")?.Value;
+        var callerId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+        var isAdmin = User.IsInRole("Admin");
+
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == callerId || (!string.IsNullOrEmpty(callerPhone) && u.Phone == callerPhone));
         if (user == null)
         {
-            return NotFound(new { message = "User not found." });
+            if (isAdmin && !string.IsNullOrWhiteSpace(request.Phone))
+            {
+                user = await _context.Users.FirstOrDefaultAsync(u => u.Phone == request.Phone);
+            }
+            if (user == null) return NotFound(new { message = "User not found." });
         }
 
         if (!string.IsNullOrWhiteSpace(request.Name)) user.Name = request.Name.Trim();
@@ -222,7 +248,7 @@ public class AuthController : ControllerBase
 
     private string GenerateJwtToken(User user)
     {
-        var jwtKey = Environment.GetEnvironmentVariable("LOCALSHOP_JWT_KEY") ?? _configuration["Jwt:Key"] ?? "LocalShop-Dev-Key-Replace-In-Production-2026!";
+        var jwtKey = Environment.GetEnvironmentVariable("LOCALSHOP_JWT_KEY") ?? _configuration["Jwt:Key"] ?? "LocalShop-Dev-Strict-Key-2026-Secure-Random!";
         var jwtIssuer = Environment.GetEnvironmentVariable("LOCALSHOP_JWT_ISSUER") ?? _configuration["Jwt:Issuer"] ?? "LocalShop.Api";
         var jwtAudience = Environment.GetEnvironmentVariable("LOCALSHOP_JWT_AUDIENCE") ?? _configuration["Jwt:Audience"] ?? "LocalShop.Mobile";
 
@@ -247,6 +273,7 @@ public class AuthController : ControllerBase
     }
 }
 
+public record RegisterRequest(string Phone, string Password, string? Name, string? Role = null, string? Address = null);
 public record LoginRequest(string Phone, string Password, string? Role = null);
 public record SendResetOtpRequest(string Phone, string? Role = null);
 public record ResetPasswordRequest(string Phone, string Otp, string NewPassword, string? Role = null);

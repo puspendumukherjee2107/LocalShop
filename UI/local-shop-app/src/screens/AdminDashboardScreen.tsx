@@ -1,7 +1,7 @@
 import { CheckCircle2, FileSpreadsheet, Settings, XCircle, KeyRound, Phone, Eye, EyeOff, UserCheck } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View, ActivityIndicator } from 'react-native';
-import { BASE_URL } from '../services/apiConfig';
+import { BASE_URL, getAuthToken } from '../services/apiConfig';
 
 type AdminSubTab = 'approvals' | 'customers' | 'reports' | 'logs' | 'config';
 
@@ -43,7 +43,11 @@ interface PlatformOverview {
   maintenanceMode: boolean;
 }
 
-export default function AdminDashboardScreen() {
+interface AdminDashboardScreenProps {
+  onLogout?: () => void;
+}
+
+export default function AdminDashboardScreen({ onLogout }: AdminDashboardScreenProps = {}) {
   const [activeTab, setActiveTab] = useState<AdminSubTab>('approvals');
   const [loading, setLoading] = useState(false);
 
@@ -88,9 +92,13 @@ export default function AdminDashboardScreen() {
 
     setIsResettingPassword(true);
     try {
+      const token = getAuthToken();
       const res = await fetch(`${BASE_URL}/admin/reset-user-password`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({
           phone: resetTargetUser.phone.trim(),
           newPassword: adminNewPassword.trim(),
@@ -118,20 +126,26 @@ export default function AdminDashboardScreen() {
   const loadTabContent = useCallback(async () => {
     setLoading(true);
     try {
+      const token = getAuthToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      };
+
       if (activeTab === 'approvals') {
-        const res = await fetch(`${BASE_URL}/admin/merchants`);
+        const res = await fetch(`${BASE_URL}/admin/merchants`, { headers });
         if (res.ok) {
           const data = await res.json();
           setMerchants(Array.isArray(data) ? data : data.value || []);
         }
       } else if (activeTab === 'customers') {
-        const res = await fetch(`${BASE_URL}/admin/customers`);
+        const res = await fetch(`${BASE_URL}/admin/customers`, { headers });
         if (res.ok) {
           const data = await res.json();
           setCustomers(Array.isArray(data) ? data : data.value || []);
         }
       } else if (activeTab === 'reports') {
-        const res = await fetch(`${BASE_URL}/admin/overview`);
+        const res = await fetch(`${BASE_URL}/admin/overview`, { headers });
         if (res.ok) {
           const data = await res.json();
           setOverview(data);
@@ -139,13 +153,13 @@ export default function AdminDashboardScreen() {
           if (data.maintenanceMode !== undefined) setMaintenanceMode(data.maintenanceMode);
         }
       } else if (activeTab === 'logs') {
-        const res = await fetch(`${BASE_URL}/admin/logs`);
+        const res = await fetch(`${BASE_URL}/admin/logs`, { headers });
         if (res.ok) {
           const data = await res.json();
           setLogs(Array.isArray(data) ? data : data.value || []);
         }
       } else if (activeTab === 'config') {
-        const res = await fetch(`${BASE_URL}/admin/config`);
+        const res = await fetch(`${BASE_URL}/admin/config`, { headers });
         if (res.ok) {
           const data = await res.json();
           setPlatformFee(data.platformFeePercent?.toString() || '2.5');
@@ -231,10 +245,20 @@ export default function AdminDashboardScreen() {
               onPress={() => setActiveTab(tab)}
             >
               <Text style={[styles.tabText, activeTab === tab && styles.tabActiveText]}>
-                {tab.toUpperCase()}
+                {tab === 'approvals' ? 'MERCHANTS' : tab.toUpperCase()}
               </Text>
             </TouchableOpacity>
           ))}
+          {onLogout && (
+            <TouchableOpacity 
+              style={[styles.tabButton, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}
+              onPress={onLogout}
+            >
+              <Text style={[styles.tabText, { color: '#DC2626', fontWeight: '700' }]}>
+                LOGOUT
+              </Text>
+            </TouchableOpacity>
+          )}
         </ScrollView>
       </View>
 

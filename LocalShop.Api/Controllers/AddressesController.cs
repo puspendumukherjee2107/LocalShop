@@ -18,10 +18,22 @@ public class AddressesController : ControllerBase
         _context = context;
     }
 
+    private bool IsAuthorizedForPhone(string phone)
+    {
+        if (User.IsInRole("Admin")) return true;
+        var callerPhone = User.FindFirst("phone")?.Value;
+        return !string.IsNullOrEmpty(callerPhone) && string.Equals(callerPhone, phone, StringComparison.OrdinalIgnoreCase);
+    }
+
     // GET: api/customers/{phone}/addresses
     [HttpGet]
     public async Task<IActionResult> GetAddresses(string phone)
     {
+        if (!IsAuthorizedForPhone(phone))
+        {
+            return Forbid();
+        }
+
         var addresses = await _context.CustomerAddresses
             .Where(a => a.CustomerPhone == phone)
             .OrderByDescending(a => a.IsDefault)
@@ -54,6 +66,11 @@ public class AddressesController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> AddAddress(string phone, [FromBody] AddAddressRequest request)
     {
+        if (!IsAuthorizedForPhone(phone))
+        {
+            return Forbid();
+        }
+
         if (string.IsNullOrWhiteSpace(request.AddressLine))
         {
             return BadRequest(new { message = "Address line cannot be empty." });
@@ -84,6 +101,11 @@ public class AddressesController : ControllerBase
     [HttpPut("{id}/default")]
     public async Task<IActionResult> SetDefaultAddress(string phone, string id)
     {
+        if (!IsAuthorizedForPhone(phone))
+        {
+            return Forbid();
+        }
+
         var addresses = await _context.CustomerAddresses.Where(a => a.CustomerPhone == phone).ToListAsync();
         var target = addresses.FirstOrDefault(a => a.Id == id);
         if (target == null) return NotFound(new { message = "Address not found." });

@@ -22,6 +22,66 @@ public class OrdersController : ControllerBase
         _hubContext = hubContext;
     }
 
+    private Order SanitizeOrder(Order order)
+    {
+        var callerPhone = User.FindFirst("phone")?.Value;
+        var isAdmin = User.IsInRole("Admin");
+        var isPlacingCustomer = !string.IsNullOrEmpty(callerPhone) && string.Equals(callerPhone, order.CustomerPhone, StringComparison.OrdinalIgnoreCase);
+
+        if (!isAdmin && !isPlacingCustomer)
+        {
+            order.DeliveryOtp = string.Empty;
+        }
+        return order;
+    }
+
+    private IEnumerable<Order> SanitizeOrders(IEnumerable<Order> orders)
+    {
+        var callerPhone = User.FindFirst("phone")?.Value;
+        var isAdmin = User.IsInRole("Admin");
+
+        foreach (var order in orders)
+        {
+            var isPlacingCustomer = !string.IsNullOrEmpty(callerPhone) && string.Equals(callerPhone, order.CustomerPhone, StringComparison.OrdinalIgnoreCase);
+            if (!isAdmin && !isPlacingCustomer)
+            {
+                order.DeliveryOtp = string.Empty;
+            }
+        }
+        return orders;
+    }
+
+    private static object StripOtpForBroadcast(Order order)
+    {
+        return new
+        {
+            order.Id,
+            order.CustomerName,
+            order.CustomerPhone,
+            order.ShopName,
+            order.ItemsCount,
+            order.TotalAmount,
+            order.Status,
+            order.RefundStatus,
+            order.PaymentMethod,
+            order.OrderType,
+            order.ItemsText,
+            order.QuotedAmount,
+            DeliveryOtp = string.Empty,
+            order.DeliveryPartnerName,
+            order.DeliveryPartnerPhone,
+            order.DiscountAmount,
+            order.CouponCode,
+            order.Rating,
+            order.ReviewComment,
+            order.CreatedAt,
+            order.IsDeletedByCustomer,
+            order.IsDeletedByMerchant,
+            order.StockRestored,
+            order.Items
+        };
+    }
+
     // GET: api/orders
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Order>>> GetAllOrders(
@@ -45,7 +105,8 @@ public class OrdersController : ControllerBase
             }
         }
 
-        return await query.ToListAsync();
+        var orders = await query.ToListAsync();
+        return Ok(SanitizeOrders(orders));
     }
 
     // GET: api/orders/shop/{shopName}
@@ -61,7 +122,8 @@ public class OrdersController : ControllerBase
             query = query.Where(o => !o.IsDeletedByMerchant);
         }
 
-        return await query.OrderByDescending(o => o.CreatedAt).ToListAsync();
+        var orders = await query.OrderByDescending(o => o.CreatedAt).ToListAsync();
+        return Ok(SanitizeOrders(orders));
     }
 
     // GET: api/orders/customer/{customerName}
@@ -77,7 +139,8 @@ public class OrdersController : ControllerBase
             query = query.Where(o => !o.IsDeletedByCustomer);
         }
 
-        return await query.OrderByDescending(o => o.CreatedAt).ToListAsync();
+        var orders = await query.OrderByDescending(o => o.CreatedAt).ToListAsync();
+        return Ok(SanitizeOrders(orders));
     }
 
     // DELETE: api/orders/{id}/customer-history
@@ -172,7 +235,7 @@ public class OrdersController : ControllerBase
     {
         var order = await _context.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == id);
         if (order == null) return NotFound(new { message = "Order not found." });
-        return Ok(order);
+        return Ok(SanitizeOrder(order));
     }
 
     // POST: api/orders/custom-list
@@ -250,7 +313,6 @@ public class OrdersController : ControllerBase
             OrderType = "Catalog",
             PaymentMethod = string.IsNullOrWhiteSpace(request.PaymentMethod) ? "UPI" : request.PaymentMethod,
             DeliveryOtp = Random.Shared.Next(1000, 9999).ToString(),
-            DiscountAmount = Math.Max(0, request.DiscountAmount),
             CouponCode = request.CouponCode,
             CreatedAt = DateTime.UtcNow
         };
@@ -261,6 +323,11 @@ public class OrdersController : ControllerBase
 
         foreach (var item in request.Items)
         {
+            if (item.Quantity <= 0)
+            {
+                return BadRequest(new { message = "Item quantity must be at least 1." });
+            }
+
             var product = await _context.Products.FindAsync(item.ProductId);
             if (product == null)
             {
@@ -294,6 +361,30 @@ public class OrdersController : ControllerBase
             summaryLines.Add($"• {item.Quantity}x {product.Name} (₹{product.Price})");
         }
 
+        // Server-side coupon and discount validation
+        decimal calculatedDiscount = 0m;
+        if (!string.IsNullOrWhiteSpace(request.CouponCode))
+        {
+            var code = request.CouponCode.Trim().ToUpperInvariant();
+            if (code == "WELCOME50" && total >= 200m)
+            {
+                calculatedDiscount = 50m;
+            }
+            else if (code == "SAVE10" && total >= 300m)
+            {
+                calculatedDiscount = Math.Min(100m, Math.Round(total * 0.10m, 2));
+            }
+            else if (code == "FESTIVE20" && total >= 500m)
+            {
+                calculatedDiscount = Math.Min(150m, Math.Round(total * 0.20m, 2));
+            }
+            else
+            {
+                return BadRequest(new { message = $"Coupon '{request.CouponCode}' is invalid or minimum order value is not met." });
+            }
+        }
+
+        order.DiscountAmount = Math.Min(total, calculatedDiscount);
         order.ItemsCount = totalQuantity;
         order.TotalAmount = Math.Max(0, total - order.DiscountAmount);
         order.QuotedAmount = order.TotalAmount;
@@ -302,8 +393,8 @@ public class OrdersController : ControllerBase
         _context.Orders.Add(order);
         await _context.SaveChangesAsync();
 
-        // Broadcast to Real-Time SignalR Hub
-        await _hubContext.Clients.All.SendAsync("ReceiveNewOrder", order);
+        // Broadcast to Real-Time SignalR Hub (Sanitized without DeliveryOtp)
+        await _hubContext.Clients.All.SendAsync("ReceiveNewOrder", StripOtpForBroadcast(order));
 
         return CreatedAtAction(nameof(GetOrder), new { id = order.Id }, order);
     }
@@ -438,6 +529,11 @@ public class OrdersController : ControllerBase
         var order = await _context.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == id);
         if (order == null) return NotFound(new { message = "Order not found." });
 
+        if (order.Status is "Cancelled" or "RejectedByMerchant" or "DeclinedByCustomer")
+        {
+            return BadRequest(new { message = "Order is already cancelled or rejected." });
+        }
+
         string role = request?.Role?.Trim().ToLower() ?? string.Empty;
         string reason = request?.Reason?.Trim() ?? string.Empty;
 
@@ -466,24 +562,41 @@ public class OrdersController : ControllerBase
             order.RefundStatus = "Pending";
         }
 
-        // Restore catalog item stock in Products table
-        var items = await _context.OrderItems.Where(i => i.OrderId == id).ToListAsync();
-        foreach (var item in items)
+        // Restore catalog item stock in Products table idempotently within a transaction
+        if (order.OrderType == "Catalog" && !order.StockRestored)
         {
-            var product = await _context.Products.FindAsync(item.ProductId);
-            if (product != null)
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                product.Stock += item.Quantity;
-                product.IsAvailable = true;
+                var items = await _context.OrderItems.Where(i => i.OrderId == id).ToListAsync();
+                foreach (var item in items)
+                {
+                    var product = await _context.Products.FindAsync(item.ProductId);
+                    if (product != null)
+                    {
+                        product.Stock += item.Quantity;
+                        product.IsAvailable = true;
+                    }
+                }
+                order.StockRestored = true;
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
             }
         }
+        else
+        {
+            await _context.SaveChangesAsync();
+        }
 
-        await _context.SaveChangesAsync();
+        // Broadcast to Real-Time SignalR Hub (Sanitized without DeliveryOtp)
+        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order = StripOtpForBroadcast(order) });
 
-        // Broadcast to Real-Time SignalR Hub
-        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order });
-
-        return Ok(order);
+        return Ok(SanitizeOrder(order));
     }
 
     // PUT: api/orders/{id}/packed
@@ -579,30 +692,64 @@ public class OrdersController : ControllerBase
         var order = await _context.Orders.FindAsync(id);
         if (order == null) return NotFound(new { message = "Order not found." });
 
+        if (order.Status is "Cancelled" or "RejectedByMerchant" or "DeclinedByCustomer")
+        {
+            return BadRequest(new { message = "Order is already cancelled or rejected." });
+        }
+
+        var callerPhone = User.FindFirst("phone")?.Value;
+        var callerName = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
+        var isAdmin = User.IsInRole("Admin");
+        var isPlacingCustomer = !string.IsNullOrEmpty(callerPhone) && string.Equals(callerPhone, order.CustomerPhone, StringComparison.OrdinalIgnoreCase);
+        var isStoreMerchant = !string.IsNullOrEmpty(callerName) && string.Equals(callerName, order.ShopName, StringComparison.OrdinalIgnoreCase);
+
+        // If authenticated, ensure caller has right to cancel
+        if (User.Identity?.IsAuthenticated == true && !isAdmin && !isPlacingCustomer && !isStoreMerchant)
+        {
+            return Forbid();
+        }
+
         order.Status = "Cancelled";
         if (order.PaymentMethod != "Cash" && order.TotalAmount > 0)
         {
             order.RefundStatus = "Pending";
         }
 
-        // Restore catalog item stock in Products table
-        var items = await _context.OrderItems.Where(i => i.OrderId == id).ToListAsync();
-        foreach (var item in items)
+        // Restore catalog item stock in Products table idempotently within a transaction
+        if (order.OrderType == "Catalog" && !order.StockRestored)
         {
-            var product = await _context.Products.FindAsync(item.ProductId);
-            if (product != null)
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                product.Stock += item.Quantity;
-                product.IsAvailable = true;
+                var items = await _context.OrderItems.Where(i => i.OrderId == id).ToListAsync();
+                foreach (var item in items)
+                {
+                    var product = await _context.Products.FindAsync(item.ProductId);
+                    if (product != null)
+                    {
+                        product.Stock += item.Quantity;
+                        product.IsAvailable = true;
+                    }
+                }
+                order.StockRestored = true;
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
             }
         }
+        else
+        {
+            await _context.SaveChangesAsync();
+        }
 
-        await _context.SaveChangesAsync();
+        // Broadcast to Real-Time SignalR Hub (Sanitized without DeliveryOtp)
+        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order = StripOtpForBroadcast(order) });
 
-        // Broadcast to Real-Time SignalR Hub
-        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order });
-
-        return Ok(order);
+        return Ok(SanitizeOrder(order));
     }
 
     // PUT: api/orders/{id}/assign-driver

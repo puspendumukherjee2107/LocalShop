@@ -10,7 +10,6 @@ namespace LocalShop.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[AllowAnonymous]
 public class ProductsController : ControllerBase
 {
     private readonly StoreDbContext _context;
@@ -22,8 +21,18 @@ public class ProductsController : ControllerBase
         _hubContext = hubContext;
     }
 
+    private bool CanManageStore(string shopName)
+    {
+        if (User.IsInRole("Admin")) return true;
+        var callerName = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
+        var callerPhone = User.FindFirst("phone")?.Value;
+        return string.Equals(callerName, shopName, StringComparison.OrdinalIgnoreCase) ||
+               _context.StoreProfiles.Any(s => s.ShopName.ToLower() == shopName.ToLower() && (s.Phone == callerPhone || s.OwnerName == callerName));
+    }
+
     // GET: api/products (Fetch items with optional category, search, and shopName filtering)
     [HttpGet]
+    [AllowAnonymous]
     public async Task<ActionResult<IEnumerable<Product>>> GetProducts(
         [FromQuery] string? category = null,
         [FromQuery] string? search = null,
@@ -69,6 +78,7 @@ public class ProductsController : ControllerBase
 
     // POST: api/products (Add a new item to the store inventory)
     [HttpPost]
+    [Authorize(Roles = "Merchant,Admin")]
     public async Task<ActionResult<Product>> AddProduct([FromBody] Product product)
     {
         if (string.IsNullOrWhiteSpace(product.Name))
@@ -76,8 +86,13 @@ public class ProductsController : ControllerBase
             return BadRequest(new { message = "Item name is required." });
         }
 
-        product.Name = product.Name.Trim();
         product.ShopName = string.IsNullOrWhiteSpace(product.ShopName) ? "Tarama Stores" : product.ShopName.Trim();
+        if (!CanManageStore(product.ShopName))
+        {
+            return Forbid();
+        }
+
+        product.Name = product.Name.Trim();
         product.Category = string.IsNullOrWhiteSpace(product.Category) ? "General" : product.Category.Trim();
         product.Price = Math.Max(0, product.Price);
         product.Stock = Math.Max(0, product.Stock);
@@ -92,10 +107,16 @@ public class ProductsController : ControllerBase
 
     // PUT: api/products/{id} (Update item details)
     [HttpPut("{id}")]
+    [Authorize(Roles = "Merchant,Admin")]
     public async Task<IActionResult> UpdateProduct(string id, [FromBody] Product updatedProduct)
     {
         var product = await _context.Products.FindAsync(id);
         if (product == null) return NotFound(new { message = "Product not found." });
+
+        if (!CanManageStore(product.ShopName))
+        {
+            return Forbid();
+        }
 
         if (!string.IsNullOrWhiteSpace(updatedProduct.Name)) product.Name = updatedProduct.Name.Trim();
         if (updatedProduct.Price >= 0) product.Price = updatedProduct.Price;
@@ -111,10 +132,16 @@ public class ProductsController : ControllerBase
 
     // PUT: api/products/toggle-stock/{id} (Update live product availability)
     [HttpPut("toggle-stock/{id}")]
+    [Authorize(Roles = "Merchant,Admin")]
     public async Task<IActionResult> ToggleStock(string id)
     {
         var product = await _context.Products.FindAsync(id);
         if (product == null) return NotFound(new { message = "Product not found." });
+
+        if (!CanManageStore(product.ShopName))
+        {
+            return Forbid();
+        }
 
         product.IsAvailable = !product.IsAvailable;
         await _context.SaveChangesAsync();
@@ -126,10 +153,16 @@ public class ProductsController : ControllerBase
 
     // DELETE: api/products/{id} (Remove item from inventory)
     [HttpDelete("{id}")]
+    [Authorize(Roles = "Merchant,Admin")]
     public async Task<IActionResult> DeleteProduct(string id)
     {
         var product = await _context.Products.FindAsync(id);
         if (product == null) return NotFound(new { message = "Product not found." });
+
+        if (!CanManageStore(product.ShopName))
+        {
+            return Forbid();
+        }
 
         _context.Products.Remove(product);
         await _context.SaveChangesAsync();
