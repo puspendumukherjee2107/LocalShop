@@ -248,9 +248,17 @@ public class AuthController : ControllerBase
 
     private string GenerateJwtToken(User user)
     {
-        var jwtKey = Environment.GetEnvironmentVariable("LOCALSHOP_JWT_KEY") ?? _configuration["Jwt:Key"] ?? "LocalShop-Dev-Strict-Key-2026-Secure-Random!";
-        var jwtIssuer = Environment.GetEnvironmentVariable("LOCALSHOP_JWT_ISSUER") ?? _configuration["Jwt:Issuer"] ?? "LocalShop.Api";
-        var jwtAudience = Environment.GetEnvironmentVariable("LOCALSHOP_JWT_AUDIENCE") ?? _configuration["Jwt:Audience"] ?? "LocalShop.Mobile";
+        var jwtKey = Environment.GetEnvironmentVariable("LOCALSHOP_JWT_KEY");
+        if (string.IsNullOrWhiteSpace(jwtKey)) jwtKey = _configuration["Jwt:Key"];
+        if (string.IsNullOrWhiteSpace(jwtKey)) jwtKey = "LocalShop-Dev-Strict-Key-2026-Secure-Random!";
+
+        var jwtIssuer = Environment.GetEnvironmentVariable("LOCALSHOP_JWT_ISSUER");
+        if (string.IsNullOrWhiteSpace(jwtIssuer)) jwtIssuer = _configuration["Jwt:Issuer"];
+        if (string.IsNullOrWhiteSpace(jwtIssuer)) jwtIssuer = "LocalShop.Api";
+
+        var jwtAudience = Environment.GetEnvironmentVariable("LOCALSHOP_JWT_AUDIENCE");
+        if (string.IsNullOrWhiteSpace(jwtAudience)) jwtAudience = _configuration["Jwt:Audience"];
+        if (string.IsNullOrWhiteSpace(jwtAudience)) jwtAudience = "LocalShop.Mobile";
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

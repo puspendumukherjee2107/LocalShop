@@ -1,5 +1,5 @@
 import * as signalR from '@microsoft/signalr';
-import { HUB_URL } from './apiConfig';
+import { HUB_URL, getAuthToken } from './apiConfig';
 
 class SignalRService {
   private connection: signalR.HubConnection | null = null;
@@ -10,7 +10,8 @@ class SignalRService {
       this.connection = new signalR.HubConnectionBuilder()
         .withUrl(HUB_URL, {
           skipNegotiation: false,
-          transport: signalR.HttpTransportType.WebSockets | signalR.HttpTransportType.LongPolling
+          transport: signalR.HttpTransportType.WebSockets | signalR.HttpTransportType.LongPolling,
+          accessTokenFactory: () => getAuthToken() || ''
         })
         .withAutomaticReconnect()
         .configureLogging(signalR.LogLevel.Warning)

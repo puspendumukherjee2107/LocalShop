@@ -1,7 +1,9 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
 namespace LocalShop.Api.Hubs;
 
+[Authorize]
 public class OrderHub : Hub
 {
     public async Task JoinShopGroup(string shopName)
@@ -35,8 +37,7 @@ public class OrderHub : Hub
             createdAt = DateTime.UtcNow
         };
 
-        // Send to targeted order group and all listeners subscribed
+        // Send ONLY to the targeted order group
         await Clients.Group($"order_{orderId}").SendAsync("ReceiveOrderMessage", payload);
-        await Clients.All.SendAsync("ReceiveOrderMessage", payload);
     }
 }

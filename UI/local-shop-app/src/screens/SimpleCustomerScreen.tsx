@@ -82,9 +82,10 @@ interface SimpleCustomerScreenProps {
     Address?: string;
     role?: string;
   } | null;
+  onLogout?: () => void;
 }
 
-export default function SimpleCustomerScreen({ currentUser }: SimpleCustomerScreenProps = {}) {
+export default function SimpleCustomerScreen({ currentUser, onLogout }: SimpleCustomerScreenProps = {}) {
   const [activeTab, setActiveTab] = useState<'new_order' | 'my_orders'>('new_order');
 
   // Available Merchants
@@ -560,6 +561,17 @@ export default function SimpleCustomerScreen({ currentUser }: SimpleCustomerScre
             </View>
           )}
         </TouchableOpacity>
+
+        {onLogout && (
+          <TouchableOpacity
+            style={[styles.tabButton, { flex: 0.45, backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}
+            onPress={onLogout}
+          >
+            <Text style={[styles.tabText, { color: '#DC2626', fontWeight: '700' }]}>
+              Logout
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* TAB 1: NEW ORDER */}

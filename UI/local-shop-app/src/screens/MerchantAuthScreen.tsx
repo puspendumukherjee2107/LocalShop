@@ -71,7 +71,7 @@ export default function MerchantAuthScreen({ onAuthSuccess }: MerchantAuthProps)
           body: JSON.stringify({
             name: shopName.trim(),
             phone: phone.trim(),
-            passwordHash: password.trim(),
+            password: password.trim(),
             role: 'Merchant',
             address: category.trim(),
           }),

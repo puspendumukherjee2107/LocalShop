@@ -82,9 +82,10 @@ interface MerchantCalcItem {
 
 interface SimpleMerchantScreenProps {
   shopName?: string;
+  onLogout?: () => void;
 }
 
-export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: SimpleMerchantScreenProps) {
+export default function SimpleMerchantScreen({ shopName = 'Tarama Stores', onLogout }: SimpleMerchantScreenProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [isTogglingOpen, setIsTogglingOpen] = useState(false);
   const [orders, setOrders] = useState<OrderItem[]>([]);
@@ -719,18 +720,29 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
           </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.refreshBtn}
-          onPress={() => {
-            fetchOrders();
-            fetchStoreProfile();
-            fetchCatalog();
-          }}
-          disabled={isLoading}
-        >
-          <RefreshCw size={16} color="#007AFF" />
-          <Text style={styles.refreshText}>Refresh</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <TouchableOpacity
+            style={styles.refreshBtn}
+            onPress={() => {
+              fetchOrders();
+              fetchStoreProfile();
+              fetchCatalog();
+            }}
+            disabled={isLoading}
+          >
+            <RefreshCw size={16} color="#007AFF" />
+            <Text style={styles.refreshText}>Refresh</Text>
+          </TouchableOpacity>
+
+          {onLogout && (
+            <TouchableOpacity
+              style={[styles.refreshBtn, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}
+              onPress={onLogout}
+            >
+              <Text style={[styles.refreshText, { color: '#DC2626', fontWeight: '700' }]}>Logout</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* Top Navigation Switcher Bar: Orders vs Selling Catalog */}

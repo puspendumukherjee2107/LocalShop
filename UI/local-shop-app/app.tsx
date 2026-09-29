@@ -9,11 +9,20 @@ import SimpleMerchantScreen from './src/screens/SimpleMerchantScreen';
 // import DeliveryPartnerScreen from './src/screens/DeliveryPartnerScreen';
 import AdminDashboardScreen from './src/screens/AdminDashboardScreen';
 import AdminLoginScreen from './src/screens/AdminLoginScreen';
+import LoginScreen from './src/screens/LoginScreen';
+import RegisterScreen from './src/screens/Auth/RegisterScreen';
+import MerchantAuthScreen from './src/screens/MerchantAuthScreen';
 import { setAuthToken } from './src/services/apiConfig';
 
 export default function App() {
   // Role switcher: 'customer' | 'merchant' | 'admin'
   const [userRole, setUserRole] = useState<'customer' | 'merchant' | 'admin'>('customer');
+  
+  // Authentication states
+  const [customerUser, setCustomerUser] = useState<any>(null);
+  const [isCustomerRegistering, setIsCustomerRegistering] = useState(false);
+  const [isMerchantLoggedIn, setIsMerchantLoggedIn] = useState(false);
+  const [merchantShop, setMerchantShop] = useState('Tarama Stores');
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
 
   return (
@@ -60,9 +69,44 @@ export default function App() {
       {/* Main Content Body */}
       <View style={styles.content}>
         {userRole === 'customer' ? (
-          <SimpleCustomerScreen />
+          !customerUser ? (
+            isCustomerRegistering ? (
+              <RegisterScreen 
+                onRegisterSuccess={() => setIsCustomerRegistering(false)} 
+                onSwitchToLogin={() => setIsCustomerRegistering(false)} 
+              />
+            ) : (
+              <LoginScreen 
+                onLoginSuccess={(user) => setCustomerUser(user)} 
+                onSwitchToRegister={() => setIsCustomerRegistering(true)} 
+              />
+            )
+          ) : (
+            <SimpleCustomerScreen 
+              currentUser={customerUser} 
+              onLogout={() => {
+                setAuthToken(undefined);
+                setCustomerUser(null);
+              }} 
+            />
+          )
         ) : userRole === 'merchant' ? (
-          <SimpleMerchantScreen />
+          !isMerchantLoggedIn ? (
+            <MerchantAuthScreen 
+              onAuthSuccess={(shop) => {
+                setMerchantShop(shop);
+                setIsMerchantLoggedIn(true);
+              }} 
+            />
+          ) : (
+            <SimpleMerchantScreen 
+              shopName={merchantShop} 
+              onLogout={() => {
+                setAuthToken(undefined);
+                setIsMerchantLoggedIn(false);
+              }} 
+            />
+          )
         ) : !isAdminLoggedIn ? (
           <AdminLoginScreen onAdminAuth={() => setIsAdminLoggedIn(true)} />
         ) : (

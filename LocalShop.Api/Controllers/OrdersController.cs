@@ -10,7 +10,7 @@ namespace LocalShop.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[AllowAnonymous]
+[Authorize]
 public class OrdersController : ControllerBase
 {
     private readonly StoreDbContext _context;
@@ -22,13 +22,74 @@ public class OrdersController : ControllerBase
         _hubContext = hubContext;
     }
 
+    private string? CallerPhone => User.FindFirst("phone")?.Value;
+    private string? CallerName => User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
+    private string? CallerId => User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+    private bool IsAdmin => User.IsInRole("Admin");
+    private bool IsMerchant => User.IsInRole("Merchant");
+    private bool IsCustomer => User.IsInRole("Customer");
+    private bool IsDelivery => User.IsInRole("Delivery");
+
+    private bool CanManageStore(string shopName)
+    {
+        if (IsAdmin) return true;
+        var phone = CallerPhone;
+        var name = CallerName;
+        return string.Equals(name, shopName, StringComparison.OrdinalIgnoreCase) ||
+               _context.StoreProfiles.Any(s => s.ShopName.ToLower() == shopName.ToLower() &&
+                   ((phone != null && s.Phone == phone) || (name != null && s.OwnerName == name)));
+    }
+
+    private List<string> GetCallerManagedStores()
+    {
+        if (IsAdmin)
+        {
+            return _context.StoreProfiles.Select(s => s.ShopName).ToList();
+        }
+
+        var phone = CallerPhone;
+        var name = CallerName;
+        var stores = _context.StoreProfiles
+            .Where(s => (phone != null && s.Phone == phone) ||
+                        (name != null && (s.OwnerName == name || s.ShopName == name)))
+            .Select(s => s.ShopName)
+            .ToList();
+
+        if (name != null && !stores.Contains(name, StringComparer.OrdinalIgnoreCase))
+        {
+            stores.Add(name);
+        }
+        return stores;
+    }
+
+    private bool CanAccessOrder(Order order)
+    {
+        if (IsAdmin) return true;
+
+        if (IsCustomer)
+        {
+            return !string.IsNullOrEmpty(CallerPhone) && string.Equals(CallerPhone, order.CustomerPhone, StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (IsMerchant)
+        {
+            return CanManageStore(order.ShopName);
+        }
+
+        if (IsDelivery)
+        {
+            return !string.IsNullOrEmpty(CallerPhone) && string.Equals(CallerPhone, order.DeliveryPartnerPhone, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return false;
+    }
+
     private Order SanitizeOrder(Order order)
     {
-        var callerPhone = User.FindFirst("phone")?.Value;
-        var isAdmin = User.IsInRole("Admin");
+        var callerPhone = CallerPhone;
         var isPlacingCustomer = !string.IsNullOrEmpty(callerPhone) && string.Equals(callerPhone, order.CustomerPhone, StringComparison.OrdinalIgnoreCase);
 
-        if (!isAdmin && !isPlacingCustomer)
+        if (!IsAdmin && !isPlacingCustomer)
         {
             order.DeliveryOtp = string.Empty;
         }
@@ -37,13 +98,12 @@ public class OrdersController : ControllerBase
 
     private IEnumerable<Order> SanitizeOrders(IEnumerable<Order> orders)
     {
-        var callerPhone = User.FindFirst("phone")?.Value;
-        var isAdmin = User.IsInRole("Admin");
+        var callerPhone = CallerPhone;
 
         foreach (var order in orders)
         {
             var isPlacingCustomer = !string.IsNullOrEmpty(callerPhone) && string.Equals(callerPhone, order.CustomerPhone, StringComparison.OrdinalIgnoreCase);
-            if (!isAdmin && !isPlacingCustomer)
+            if (!IsAdmin && !isPlacingCustomer)
             {
                 order.DeliveryOtp = string.Empty;
             }
@@ -86,6 +146,7 @@ public class OrdersController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Order>>> GetAllOrders(
         [FromQuery] string? role,
+        [FromQuery] string? shopName,
         [FromQuery] bool includeDeleted = false)
     {
         var query = _context.Orders
@@ -93,16 +154,80 @@ public class OrdersController : ControllerBase
             .OrderByDescending(o => o.CreatedAt)
             .AsQueryable();
 
-        if (!includeDeleted)
+        if (IsAdmin)
         {
-            if (string.Equals(role, "customer", StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrWhiteSpace(shopName))
             {
-                query = query.Where(o => !o.IsDeletedByCustomer);
+                query = query.Where(o => o.ShopName.ToLower() == shopName.ToLower());
             }
-            else if (string.Equals(role, "merchant", StringComparison.OrdinalIgnoreCase))
+
+            if (!includeDeleted)
+            {
+                if (string.Equals(role, "customer", StringComparison.OrdinalIgnoreCase))
+                {
+                    query = query.Where(o => !o.IsDeletedByCustomer);
+                }
+                else if (string.Equals(role, "merchant", StringComparison.OrdinalIgnoreCase))
+                {
+                    query = query.Where(o => !o.IsDeletedByMerchant);
+                }
+            }
+        }
+        else if (IsMerchant)
+        {
+            var managedStores = GetCallerManagedStores();
+            if (!managedStores.Any())
+            {
+                return Ok(Enumerable.Empty<Order>());
+            }
+
+            if (!string.IsNullOrWhiteSpace(shopName))
+            {
+                if (!managedStores.Any(s => string.Equals(s, shopName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return Forbid();
+                }
+                query = query.Where(o => o.ShopName.ToLower() == shopName.ToLower());
+            }
+            else
+            {
+                var lowerStores = managedStores.Select(s => s.ToLower()).ToList();
+                query = query.Where(o => lowerStores.Contains(o.ShopName.ToLower()));
+            }
+
+            if (!includeDeleted)
             {
                 query = query.Where(o => !o.IsDeletedByMerchant);
             }
+        }
+        else if (IsCustomer)
+        {
+            var phone = CallerPhone;
+            if (string.IsNullOrEmpty(phone))
+            {
+                return Forbid();
+            }
+
+            query = query.Where(o => o.CustomerPhone == phone);
+
+            if (!includeDeleted)
+            {
+                query = query.Where(o => !o.IsDeletedByCustomer);
+            }
+        }
+        else if (IsDelivery)
+        {
+            var phone = CallerPhone;
+            if (string.IsNullOrEmpty(phone))
+            {
+                return Forbid();
+            }
+
+            query = query.Where(o => o.DeliveryPartnerPhone == phone || (o.Status == "Packed" || o.Status == "Out for Delivery"));
+        }
+        else
+        {
+            return Forbid();
         }
 
         var orders = await query.ToListAsync();
@@ -111,8 +236,14 @@ public class OrdersController : ControllerBase
 
     // GET: api/orders/shop/{shopName}
     [HttpGet("shop/{shopName}")]
+    [Authorize(Roles = "Merchant,Admin")]
     public async Task<ActionResult<IEnumerable<Order>>> GetShopOrders(string shopName, [FromQuery] bool includeDeleted = false)
     {
+        if (!CanManageStore(shopName))
+        {
+            return Forbid();
+        }
+
         var query = _context.Orders
             .Include(o => o.Items)
             .Where(o => o.ShopName.ToLower() == shopName.ToLower());
@@ -128,11 +259,17 @@ public class OrdersController : ControllerBase
 
     // GET: api/orders/customer/{customerName}
     [HttpGet("customer/{customerName}")]
+    [Authorize(Roles = "Customer,Admin")]
     public async Task<ActionResult<IEnumerable<Order>>> GetCustomerOrders(string customerName, [FromQuery] bool includeDeleted = false)
     {
+        if (!IsAdmin && !string.Equals(CallerName, customerName, StringComparison.OrdinalIgnoreCase) && !string.Equals(CallerPhone, customerName, StringComparison.OrdinalIgnoreCase))
+        {
+            return Forbid();
+        }
+
         var query = _context.Orders
             .Include(o => o.Items)
-            .Where(o => o.CustomerName.ToLower() == customerName.ToLower());
+            .Where(o => o.CustomerName.ToLower() == customerName.ToLower() || o.CustomerPhone == customerName);
 
         if (!includeDeleted)
         {
@@ -145,12 +282,18 @@ public class OrdersController : ControllerBase
 
     // DELETE: api/orders/{id}/customer-history
     [HttpDelete("{id}/customer-history")]
+    [Authorize(Roles = "Customer,Admin")]
     public async Task<IActionResult> DeleteCustomerOrderHistory(string id)
     {
         var order = await _context.Orders.FindAsync(id);
         if (order == null)
         {
             return NotFound(new { message = "Order not found." });
+        }
+
+        if (!IsAdmin && !string.Equals(CallerPhone, order.CustomerPhone, StringComparison.OrdinalIgnoreCase))
+        {
+            return Forbid();
         }
 
         // Soft delete: marks hidden from customer view while preserving 100% of data for auditing
@@ -162,12 +305,18 @@ public class OrdersController : ControllerBase
 
     // DELETE: api/orders/{id}/merchant-history
     [HttpDelete("{id}/merchant-history")]
+    [Authorize(Roles = "Merchant,Admin")]
     public async Task<IActionResult> DeleteMerchantOrderHistory(string id)
     {
         var order = await _context.Orders.FindAsync(id);
         if (order == null)
         {
             return NotFound(new { message = "Order not found." });
+        }
+
+        if (!CanManageStore(order.ShopName))
+        {
+            return Forbid();
         }
 
         // Soft delete: marks hidden from merchant view while preserving 100% of data for auditing
@@ -179,18 +328,16 @@ public class OrdersController : ControllerBase
 
     // DELETE: api/orders/customer-history/clear
     [HttpDelete("customer-history/clear")]
+    [Authorize(Roles = "Customer,Admin")]
     public async Task<IActionResult> ClearCustomerHistory([FromQuery] string? phone, [FromQuery] string? customerName)
     {
-        var query = _context.Orders.Where(o => !o.IsDeletedByCustomer);
+        var targetPhone = !IsAdmin ? CallerPhone : (phone ?? CallerPhone);
+        if (string.IsNullOrEmpty(targetPhone))
+        {
+            return Forbid();
+        }
 
-        if (!string.IsNullOrWhiteSpace(phone))
-        {
-            query = query.Where(o => o.CustomerPhone == phone);
-        }
-        else if (!string.IsNullOrWhiteSpace(customerName))
-        {
-            query = query.Where(o => o.CustomerName.ToLower() == customerName.ToLower());
-        }
+        var query = _context.Orders.Where(o => !o.IsDeletedByCustomer && o.CustomerPhone == targetPhone);
 
         var finishedStatuses = new[] { "Completed", "Delivered", "Cancelled", "DeclinedByCustomer", "RejectedByMerchant", "DeliveredAndPaymentDone" };
         var ordersToClear = await query.Where(o => finishedStatuses.Contains(o.Status)).ToListAsync();
@@ -207,11 +354,12 @@ public class OrdersController : ControllerBase
 
     // DELETE: api/orders/merchant-history/clear
     [HttpDelete("merchant-history/clear")]
+    [Authorize(Roles = "Merchant,Admin")]
     public async Task<IActionResult> ClearMerchantHistory([FromQuery] string shopName)
     {
-        if (string.IsNullOrWhiteSpace(shopName))
+        if (string.IsNullOrWhiteSpace(shopName) || !CanManageStore(shopName))
         {
-            return BadRequest(new { message = "Shop name is required." });
+            return Forbid();
         }
 
         var finishedStatuses = new[] { "Completed", "Delivered", "Cancelled", "DeclinedByCustomer", "RejectedByMerchant", "DeliveredAndPaymentDone" };
@@ -235,6 +383,7 @@ public class OrdersController : ControllerBase
     {
         var order = await _context.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == id);
         if (order == null) return NotFound(new { message = "Order not found." });
+        if (!CanAccessOrder(order)) return Forbid();
         return Ok(SanitizeOrder(order));
     }
 
@@ -243,6 +392,7 @@ public class OrdersController : ControllerBase
     // Allows customer to submit an uncataloged grocery list without requiring merchant inventory
     [HttpPost("custom-list")]
     [HttpPost("list")]
+    [Authorize(Roles = "Customer,Admin")]
     public async Task<ActionResult<Order>> CreateCustomListOrder([FromBody] CustomListOrderRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.ItemsText))
@@ -250,13 +400,26 @@ public class OrdersController : ControllerBase
             return BadRequest(new { message = "Grocery items list cannot be empty." });
         }
 
+        var effectivePhone = IsAdmin && !string.IsNullOrWhiteSpace(request.CustomerPhone)
+            ? request.CustomerPhone.Trim()
+            : (CallerPhone ?? request.CustomerPhone?.Trim() ?? string.Empty);
+
+        if (string.IsNullOrWhiteSpace(effectivePhone))
+        {
+            return BadRequest(new { message = "Customer mobile number is required." });
+        }
+
+        var effectiveName = !IsAdmin && !string.IsNullOrWhiteSpace(CallerName)
+            ? CallerName
+            : (string.IsNullOrWhiteSpace(request.CustomerName) ? "Customer" : request.CustomerName.Trim());
+
         var lines = request.ItemsText.Split(new[] { '\r', '\n', ',' }, StringSplitOptions.RemoveEmptyEntries);
         int estimatedCount = Math.Max(1, lines.Length);
 
         var order = new Order
         {
-            CustomerName = string.IsNullOrWhiteSpace(request.CustomerName) ? "Guest Customer" : request.CustomerName.Trim(),
-            CustomerPhone = request.CustomerPhone?.Trim() ?? string.Empty,
+            CustomerName = effectiveName,
+            CustomerPhone = effectivePhone,
             ShopName = string.IsNullOrWhiteSpace(request.ShopName) ? "Tarama Stores" : request.ShopName.Trim(),
             ItemsCount = estimatedCount,
             TotalAmount = 0,
@@ -288,15 +451,16 @@ public class OrdersController : ControllerBase
         _context.Orders.Add(order);
         await _context.SaveChangesAsync();
 
-        // Broadcast to Real-Time SignalR Hub
-        await _hubContext.Clients.All.SendAsync("ReceiveNewOrder", order);
+        // Broadcast to Real-Time SignalR Hub (Sanitized without DeliveryOtp)
+        await _hubContext.Clients.All.SendAsync("ReceiveNewOrder", StripOtpForBroadcast(order));
 
-        return CreatedAtAction(nameof(GetOrder), new { id = order.Id }, order);
+        return CreatedAtAction(nameof(GetOrder), new { id = order.Id }, SanitizeOrder(order));
     }
 
     // POST: api/orders/catalog
     // Handles catalog cart checkouts with itemized OrderItems and automated stock decrement
     [HttpPost("catalog")]
+    [Authorize(Roles = "Customer,Admin")]
     public async Task<ActionResult<Order>> CreateCatalogOrder([FromBody] CatalogOrderRequest request)
     {
         if (request.Items == null || request.Items.Count == 0)
@@ -304,10 +468,23 @@ public class OrdersController : ControllerBase
             return BadRequest(new { message = "Cart cannot be empty." });
         }
 
+        var effectivePhone = IsAdmin && !string.IsNullOrWhiteSpace(request.CustomerPhone)
+            ? request.CustomerPhone.Trim()
+            : (CallerPhone ?? request.CustomerPhone?.Trim() ?? string.Empty);
+
+        if (string.IsNullOrWhiteSpace(effectivePhone))
+        {
+            return BadRequest(new { message = "Customer mobile number is required." });
+        }
+
+        var effectiveName = !IsAdmin && !string.IsNullOrWhiteSpace(CallerName)
+            ? CallerName
+            : (string.IsNullOrWhiteSpace(request.CustomerName) ? "Customer" : request.CustomerName.Trim());
+
         var order = new Order
         {
-            CustomerName = string.IsNullOrWhiteSpace(request.CustomerName) ? "Guest Customer" : request.CustomerName.Trim(),
-            CustomerPhone = request.CustomerPhone?.Trim() ?? string.Empty,
+            CustomerName = effectiveName,
+            CustomerPhone = effectivePhone,
             ShopName = string.IsNullOrWhiteSpace(request.ShopName) ? "Tarama Stores" : request.ShopName.Trim(),
             Status = "Processing",
             OrderType = "Catalog",
@@ -396,14 +573,21 @@ public class OrdersController : ControllerBase
         // Broadcast to Real-Time SignalR Hub (Sanitized without DeliveryOtp)
         await _hubContext.Clients.All.SendAsync("ReceiveNewOrder", StripOtpForBroadcast(order));
 
-        return CreatedAtAction(nameof(GetOrder), new { id = order.Id }, order);
+        return CreatedAtAction(nameof(GetOrder), new { id = order.Id }, SanitizeOrder(order));
     }
 
     // POST: api/orders/quick-bill
     // Merchant directly sells products at counter without maintaining inventory
     [HttpPost("quick-bill")]
+    [Authorize(Roles = "Merchant,Admin")]
     public async Task<ActionResult<Order>> CreateQuickBill([FromBody] QuickBillRequest request)
     {
+        var targetShop = string.IsNullOrWhiteSpace(request.ShopName) ? "Tarama Stores" : request.ShopName.Trim();
+        if (!CanManageStore(targetShop))
+        {
+            return Forbid();
+        }
+
         if (request.TotalAmount <= 0)
         {
             return BadRequest(new { message = "Total amount must be greater than zero." });
@@ -413,7 +597,7 @@ public class OrdersController : ControllerBase
         {
             CustomerName = string.IsNullOrWhiteSpace(request.CustomerName) ? "Walk-in Customer" : request.CustomerName.Trim(),
             CustomerPhone = request.CustomerPhone?.Trim() ?? string.Empty,
-            ShopName = string.IsNullOrWhiteSpace(request.ShopName) ? "Tarama Stores" : request.ShopName.Trim(),
+            ShopName = targetShop,
             ItemsCount = request.ItemsCount > 0 ? request.ItemsCount : 1,
             TotalAmount = request.TotalAmount,
             QuotedAmount = request.TotalAmount,
@@ -428,19 +612,25 @@ public class OrdersController : ControllerBase
         _context.Orders.Add(order);
         await _context.SaveChangesAsync();
 
-        // Broadcast to Real-Time SignalR Hub
-        await _hubContext.Clients.All.SendAsync("ReceiveNewOrder", order);
+        // Broadcast to Real-Time SignalR Hub (Sanitized without DeliveryOtp)
+        await _hubContext.Clients.All.SendAsync("ReceiveNewOrder", StripOtpForBroadcast(order));
 
-        return CreatedAtAction(nameof(GetOrder), new { id = order.Id }, order);
+        return CreatedAtAction(nameof(GetOrder), new { id = order.Id }, SanitizeOrder(order));
     }
 
     // PUT: api/orders/{id}/quote
     // Merchant reviews the customer's grocery list and quotes the total price
     [HttpPut("{id}/quote")]
+    [Authorize(Roles = "Merchant,Admin")]
     public async Task<IActionResult> QuotePrice(string id, [FromBody] QuoteRequest request)
     {
         var order = await _context.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == id);
         if (order == null) return NotFound(new { message = "Order not found." });
+
+        if (!CanManageStore(order.ShopName))
+        {
+            return Forbid();
+        }
 
         if (request.QuotedAmount <= 0)
         {
@@ -487,11 +677,11 @@ public class OrdersController : ControllerBase
         
         await _context.SaveChangesAsync();
 
-        // Broadcast to Real-Time SignalR Hub
-        await _hubContext.Clients.All.SendAsync("ReceivePriceQuote", new { orderId = order.Id, quoteAmount = order.QuotedAmount, discountAmount = order.DiscountAmount, order });
-        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order });
+        // Broadcast to Real-Time SignalR Hub (Sanitized without DeliveryOtp)
+        await _hubContext.Clients.All.SendAsync("ReceivePriceQuote", new { orderId = order.Id, quoteAmount = order.QuotedAmount, discountAmount = order.DiscountAmount, order = StripOtpForBroadcast(order) });
+        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order = StripOtpForBroadcast(order) });
 
-        return Ok(order);
+        return Ok(SanitizeOrder(order));
     }
 
     // PUT: api/orders/{id}/accept-quote
@@ -499,20 +689,26 @@ public class OrdersController : ControllerBase
     // Customer accepts the merchant's quote and approves the order
     [HttpPut("{id}/accept-quote")]
     [HttpPut("{id}/approve")]
+    [Authorize(Roles = "Customer,Admin")]
     public async Task<IActionResult> AcceptQuote(string id, [FromBody] AcceptQuoteRequest? request)
     {
         var order = await _context.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == id);
         if (order == null) return NotFound(new { message = "Order not found." });
+
+        if (!IsAdmin && !string.Equals(CallerPhone, order.CustomerPhone, StringComparison.OrdinalIgnoreCase))
+        {
+            return Forbid();
+        }
 
         order.PaymentMethod = string.IsNullOrWhiteSpace(request?.PaymentMethod) ? "Direct Transfer" : request.PaymentMethod;
         order.Status = "Approved";
 
         await _context.SaveChangesAsync();
 
-        // Broadcast to Real-Time SignalR Hub
-        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order });
+        // Broadcast to Real-Time SignalR Hub (Sanitized without DeliveryOtp)
+        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order = StripOtpForBroadcast(order) });
 
-        return Ok(order);
+        return Ok(SanitizeOrder(order));
     }
 
     // PUT: api/orders/{id}/disapprove
@@ -524,10 +720,16 @@ public class OrdersController : ControllerBase
     [HttpPut("{id}/reject")]
     [HttpPut("{id}/reject-quote")]
     [HttpPut("{id}/decline")]
+    [Authorize(Roles = "Customer,Merchant,Admin")]
     public async Task<IActionResult> DisapproveOrder(string id, [FromBody] RejectOrderRequest? request)
     {
         var order = await _context.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == id);
         if (order == null) return NotFound(new { message = "Order not found." });
+
+        if (!CanAccessOrder(order))
+        {
+            return Forbid();
+        }
 
         if (order.Status is "Cancelled" or "RejectedByMerchant" or "DeclinedByCustomer")
         {
@@ -602,72 +804,102 @@ public class OrdersController : ControllerBase
     // PUT: api/orders/{id}/packed
     // Merchant sends confirmation once order is packed
     [HttpPut("{id}/packed")]
+    [Authorize(Roles = "Merchant,Admin")]
     public async Task<IActionResult> MarkPacked(string id)
     {
         var order = await _context.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == id);
         if (order == null) return NotFound(new { message = "Order not found." });
 
+        if (!CanManageStore(order.ShopName))
+        {
+            return Forbid();
+        }
+
         order.Status = "Packed";
         await _context.SaveChangesAsync();
 
-        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order });
-        return Ok(order);
+        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order = StripOtpForBroadcast(order) });
+        return Ok(SanitizeOrder(order));
     }
 
     // PUT: api/orders/{id}/delivered-and-paid
     // Merchant marks order delivered and payment done
     [HttpPut("{id}/delivered-and-paid")]
+    [Authorize(Roles = "Merchant,Delivery,Admin")]
     public async Task<IActionResult> MarkDeliveredAndPaid(string id)
     {
         var order = await _context.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == id);
         if (order == null) return NotFound(new { message = "Order not found." });
 
+        if (!CanManageStore(order.ShopName) && (!IsDelivery || !string.Equals(CallerPhone, order.DeliveryPartnerPhone, StringComparison.OrdinalIgnoreCase)))
+        {
+            return Forbid();
+        }
+
         order.Status = "DeliveredAndPaymentDone";
         await _context.SaveChangesAsync();
 
-        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order });
-        return Ok(order);
+        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order = StripOtpForBroadcast(order) });
+        return Ok(SanitizeOrder(order));
     }
 
     // PUT: api/orders/{id}/customer-confirm
     // Customer approves that delivery and payment are done
     [HttpPut("{id}/customer-confirm")]
+    [Authorize(Roles = "Customer,Admin")]
     public async Task<IActionResult> CustomerConfirmCompleted(string id)
     {
         var order = await _context.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == id);
         if (order == null) return NotFound(new { message = "Order not found." });
 
+        if (!IsAdmin && !string.Equals(CallerPhone, order.CustomerPhone, StringComparison.OrdinalIgnoreCase))
+        {
+            return Forbid();
+        }
+
         order.Status = "Completed";
         await _context.SaveChangesAsync();
 
-        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order });
-        return Ok(order);
+        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order = StripOtpForBroadcast(order) });
+        return Ok(SanitizeOrder(order));
     }
 
     // PUT: api/orders/{id}/status
     // Updates order processing state
     [HttpPut("{id}/status")]
+    [Authorize(Roles = "Merchant,Admin")]
     public async Task<IActionResult> UpdateStatus(string id, [FromBody] UpdateStatusRequest request)
     {
         var order = await _context.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == id);
         if (order == null) return NotFound(new { message = "Order not found." });
 
+        if (!CanManageStore(order.ShopName))
+        {
+            return Forbid();
+        }
+
         order.Status = request.Status;
         await _context.SaveChangesAsync();
 
         // Broadcast to Real-Time SignalR Hub
-        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order });
+        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order = StripOtpForBroadcast(order) });
 
-        return Ok(order);
+        return Ok(SanitizeOrder(order));
     }
 
     // GET: api/orders/customer/{phone}/payments
     // Returns payment ledger transactions for a customer
     [HttpGet("customer/{phone}/payments")]
+    [Authorize(Roles = "Customer,Admin")]
     public async Task<IActionResult> GetCustomerPayments(string phone)
     {
+        if (!IsAdmin && !string.Equals(CallerPhone, phone, StringComparison.OrdinalIgnoreCase))
+        {
+            return Forbid();
+        }
+
         var orders = await _context.Orders
-            .Where(o => o.CustomerPhone == phone && o.TotalAmount > 0)
+            .Where(o => o.CustomerPhone == phone && o.TotalAmount > 0 && !o.IsDeletedByCustomer)
             .OrderByDescending(o => o.CreatedAt)
             .ToListAsync();
 
@@ -687,26 +919,20 @@ public class OrdersController : ControllerBase
     // PUT: api/orders/{id}/cancel
     // Cancels order, triggers refund, and restores catalog stock
     [HttpPut("{id}/cancel")]
+    [Authorize(Roles = "Customer,Merchant,Admin")]
     public async Task<IActionResult> CancelOrder(string id)
     {
         var order = await _context.Orders.FindAsync(id);
         if (order == null) return NotFound(new { message = "Order not found." });
 
+        if (!CanAccessOrder(order))
+        {
+            return Forbid();
+        }
+
         if (order.Status is "Cancelled" or "RejectedByMerchant" or "DeclinedByCustomer")
         {
             return BadRequest(new { message = "Order is already cancelled or rejected." });
-        }
-
-        var callerPhone = User.FindFirst("phone")?.Value;
-        var callerName = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
-        var isAdmin = User.IsInRole("Admin");
-        var isPlacingCustomer = !string.IsNullOrEmpty(callerPhone) && string.Equals(callerPhone, order.CustomerPhone, StringComparison.OrdinalIgnoreCase);
-        var isStoreMerchant = !string.IsNullOrEmpty(callerName) && string.Equals(callerName, order.ShopName, StringComparison.OrdinalIgnoreCase);
-
-        // If authenticated, ensure caller has right to cancel
-        if (User.Identity?.IsAuthenticated == true && !isAdmin && !isPlacingCustomer && !isStoreMerchant)
-        {
-            return Forbid();
         }
 
         order.Status = "Cancelled";
@@ -755,10 +981,16 @@ public class OrdersController : ControllerBase
     // PUT: api/orders/{id}/assign-driver
     // Merchant assigns order to delivery partner
     [HttpPut("{id}/assign-driver")]
+    [Authorize(Roles = "Merchant,Admin")]
     public async Task<IActionResult> AssignDriver(string id, [FromBody] AssignDriverRequest request)
     {
         var order = await _context.Orders.FindAsync(id);
         if (order == null) return NotFound(new { message = "Order not found." });
+
+        if (!CanManageStore(order.ShopName))
+        {
+            return Forbid();
+        }
 
         order.DeliveryPartnerName = request.DriverName;
         order.DeliveryPartnerPhone = request.DriverPhone;
@@ -766,17 +998,23 @@ public class OrdersController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order });
-        return Ok(order);
+        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order = StripOtpForBroadcast(order) });
+        return Ok(SanitizeOrder(order));
     }
 
     // PUT: api/orders/{id}/verify-otp-deliver
     // Delivery partner enters customer's 4-digit OTP to complete delivery
     [HttpPut("{id}/verify-otp-deliver")]
+    [Authorize(Roles = "Merchant,Delivery,Admin")]
     public async Task<IActionResult> VerifyOtpAndDeliver(string id, [FromBody] VerifyOtpRequest request)
     {
         var order = await _context.Orders.FindAsync(id);
         if (order == null) return NotFound(new { message = "Order not found." });
+
+        if (!CanManageStore(order.ShopName) && (!IsDelivery || !string.Equals(CallerPhone, order.DeliveryPartnerPhone, StringComparison.OrdinalIgnoreCase)))
+        {
+            return Forbid();
+        }
 
         if (string.IsNullOrWhiteSpace(request.Otp) || order.DeliveryOtp.Trim() != request.Otp.Trim())
         {
@@ -786,29 +1024,40 @@ public class OrdersController : ControllerBase
         order.Status = "Delivered";
         await _context.SaveChangesAsync();
 
-        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order });
-        return Ok(order);
+        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order = StripOtpForBroadcast(order) });
+        return Ok(SanitizeOrder(order));
     }
 
     // PUT: api/orders/{id}/rate
     // Customer submits rating and review for delivered order
     [HttpPut("{id}/rate")]
+    [Authorize(Roles = "Customer,Admin")]
     public async Task<IActionResult> RateOrder(string id, [FromBody] RateOrderRequest request)
     {
         var order = await _context.Orders.FindAsync(id);
         if (order == null) return NotFound(new { message = "Order not found." });
 
+        if (!IsAdmin && !string.Equals(CallerPhone, order.CustomerPhone, StringComparison.OrdinalIgnoreCase))
+        {
+            return Forbid();
+        }
+
         order.Rating = Math.Clamp(request.Rating, 1, 5);
         order.ReviewComment = request.GetEffectiveComment()?.Trim();
 
         await _context.SaveChangesAsync();
-        return Ok(order);
+        return Ok(SanitizeOrder(order));
     }
 
     // GET: api/orders/{id}/messages
     [HttpGet("{id}/messages")]
+    [Authorize]
     public async Task<IActionResult> GetOrderMessages(string id)
     {
+        var order = await _context.Orders.FindAsync(id);
+        if (order == null) return NotFound(new { message = "Order not found." });
+        if (!CanAccessOrder(order)) return Forbid();
+
         var messages = await _context.OrderMessages
             .Where(m => m.OrderId == id)
             .OrderBy(m => m.CreatedAt)
@@ -818,8 +1067,13 @@ public class OrdersController : ControllerBase
 
     // POST: api/orders/{id}/messages
     [HttpPost("{id}/messages")]
+    [Authorize]
     public async Task<IActionResult> SendOrderMessage(string id, [FromBody] SendMessageRequest request)
     {
+        var order = await _context.Orders.FindAsync(id);
+        if (order == null) return NotFound(new { message = "Order not found." });
+        if (!CanAccessOrder(order)) return Forbid();
+
         if (string.IsNullOrWhiteSpace(request.MessageText))
         {
             return BadRequest(new { message = "Message text cannot be empty." });
@@ -828,8 +1082,8 @@ public class OrdersController : ControllerBase
         var message = new OrderMessage
         {
             OrderId = id,
-            SenderRole = request.SenderRole ?? "Customer",
-            SenderName = request.SenderName ?? "User",
+            SenderRole = request.SenderRole ?? (IsMerchant ? "Merchant" : "Customer"),
+            SenderName = request.SenderName ?? CallerName ?? "User",
             MessageText = request.MessageText.Trim(),
             CreatedAt = DateTime.UtcNow
         };
@@ -837,18 +1091,20 @@ public class OrdersController : ControllerBase
         _context.OrderMessages.Add(message);
         await _context.SaveChangesAsync();
 
-        // Broadcast to SignalR
-        await _hubContext.Clients.All.SendAsync("ReceiveOrderMessage", message);
+        // Broadcast ONLY to the specific order group
+        await _hubContext.Clients.Group($"order_{id}").SendAsync("ReceiveOrderMessage", message);
 
         return Ok(message);
     }
 
     // GET: api/orders/{id}/whatsapp-link?recipient=merchant|customer|delivery
     [HttpGet("{id}/whatsapp-link")]
+    [Authorize]
     public async Task<IActionResult> GetWhatsAppLink(string id, [FromQuery] string recipient = "merchant")
     {
         var order = await _context.Orders.FindAsync(id);
         if (order == null) return NotFound(new { message = "Order not found." });
+        if (!CanAccessOrder(order)) return Forbid();
 
         string targetPhone = "";
         string message = "";

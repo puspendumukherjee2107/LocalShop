@@ -53,7 +53,7 @@ export default function RegisterScreen({ onRegisterSuccess, onSwitchToLogin }: R
         body: JSON.stringify({
           name: name.trim(),
           phone: phone.trim(),
-          passwordHash: password.trim(),
+          password: password.trim(),
           role: 'Customer',
           address: address.trim()
         }),
