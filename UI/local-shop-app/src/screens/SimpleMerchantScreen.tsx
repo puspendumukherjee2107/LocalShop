@@ -23,10 +23,22 @@ import {
   Calculator,
   Plus,
   Send,
-  XCircle
+  XCircle,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react-native';
 import { BASE_URL } from '../services/apiConfig';
 import { signalRService } from '../services/signalRService';
+
+interface OrderItemDetail {
+  id?: string;
+  orderId?: string;
+  productId?: string;
+  productName: string;
+  unitPrice: number;
+  quantity: number;
+  isAvailable?: boolean;
+}
 
 interface OrderItem {
   id: string;
@@ -39,6 +51,13 @@ interface OrderItem {
   quotedAmount?: number;
   status: string;
   createdAt: string;
+  items?: OrderItemDetail[];
+}
+
+interface MerchantCalcItem {
+  name: string;
+  price: string;
+  isAvailable: boolean;
 }
 
 interface SimpleMerchantScreenProps {
@@ -54,7 +73,7 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
 
   // Quoting Calculator State per Order
   const [quoteInputs, setQuoteInputs] = useState<{ [orderId: string]: string }>({});
-  const [calcItems, setCalcItems] = useState<{ [orderId: string]: { name: string; price: string }[] }>({});
+  const [calcItems, setCalcItems] = useState<{ [orderId: string]: MerchantCalcItem[] }>({});
   const [processingOrderId, setProcessingOrderId] = useState<string | null>(null);
 
   const fetchStoreProfile = useCallback(async () => {
@@ -165,57 +184,130 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
     };
   }, [shopName, fetchOrders, fetchStoreProfile]);
 
-  // Price Calculator Helpers
+  // Price Calculator Helpers with Item-Level Pricing & Stock Availability
+  const getCalcItemsForOrder = useCallback((order: OrderItem): MerchantCalcItem[] => {
+    if (calcItems[order.id] && calcItems[order.id].length > 0) {
+      return calcItems[order.id];
+    }
+    if (order.items && order.items.length > 0) {
+      return order.items.map(it => ({
+        name: it.productName,
+        price: it.unitPrice > 0 ? it.unitPrice.toString() : '',
+        isAvailable: it.isAvailable !== false
+      }));
+    }
+    if (order.itemsText) {
+      const rawLines = order.itemsText.split(/[\r\n,]+/);
+      const parsed = rawLines
+        .map(line => line.trim().replace(/^[•\-*\d.]+\s*/, '').trim())
+        .filter(line => line.length > 0)
+        .map(line => ({
+          name: line,
+          price: '',
+          isAvailable: true
+        }));
+      if (parsed.length > 0) return parsed;
+    }
+    return [{ name: '', price: '', isAvailable: true }];
+  }, [calcItems]);
+
+  const recalculateTotal = (orderId: string, items: MerchantCalcItem[]) => {
+    const total = items
+      .filter(item => item.isAvailable)
+      .reduce((sum, item) => {
+        const p = parseFloat(item.price);
+        return sum + (isNaN(p) ? 0 : p);
+      }, 0);
+    setQuoteInputs(prev => ({ ...prev, [orderId]: total > 0 ? total.toString() : '0' }));
+    return total;
+  };
+
   const handlePriceInputChange = (orderId: string, text: string) => {
     setQuoteInputs(prev => ({ ...prev, [orderId]: text }));
   };
 
-  const handleAddCalcItem = (orderId: string) => {
-    setCalcItems(prev => {
-      const current = prev[orderId] || [];
-      return { ...prev, [orderId]: [...current, { name: '', price: '' }] };
-    });
+  const handleUpdateItemName = (order: OrderItem, index: number, name: string) => {
+    const current = [...getCalcItemsForOrder(order)];
+    current[index] = { ...current[index], name };
+    setCalcItems(prev => ({ ...prev, [order.id]: current }));
   };
 
-  const handleUpdateCalcItem = (orderId: string, index: number, field: 'name' | 'price', value: string) => {
-    setCalcItems(prev => {
-      const current = [...(prev[orderId] || [])];
-      current[index] = { ...current[index], [field]: value };
-
-      // Auto-sum total if price changed
-      const total = current.reduce((sum, item) => {
-        const p = parseFloat(item.price);
-        return sum + (isNaN(p) ? 0 : p);
-      }, 0);
-
-      if (total > 0) {
-        setQuoteInputs(qPrev => ({ ...qPrev, [orderId]: total.toString() }));
-      }
-
-      return { ...prev, [orderId]: current };
-    });
+  const handleUpdateItemPrice = (order: OrderItem, index: number, price: string) => {
+    const current = [...getCalcItemsForOrder(order)];
+    current[index] = { ...current[index], price };
+    recalculateTotal(order.id, current);
+    setCalcItems(prev => ({ ...prev, [order.id]: current }));
   };
 
-  // 1. Merchant Sends Price Quote
-  const handleSendQuote = async (orderId: string) => {
+  const handleToggleItemAvailability = (order: OrderItem, index: number) => {
+    const current = [...getCalcItemsForOrder(order)];
+    const newAvail = !current[index].isAvailable;
+    current[index] = {
+      ...current[index],
+      isAvailable: newAvail,
+      price: newAvail ? (current[index].price === '0' ? '' : current[index].price) : '0'
+    };
+    recalculateTotal(order.id, current);
+    setCalcItems(prev => ({ ...prev, [order.id]: current }));
+  };
+
+  const handleAddCalcItem = (order: OrderItem) => {
+    const current = [...getCalcItemsForOrder(order)];
+    const updated = [...current, { name: '', price: '', isAvailable: true }];
+    setCalcItems(prev => ({ ...prev, [order.id]: updated }));
+  };
+
+  const handleRemoveCalcItem = (order: OrderItem, index: number) => {
+    const current = [...getCalcItemsForOrder(order)];
+    if (current.length <= 1) {
+      current[0] = { name: '', price: '', isAvailable: true };
+    } else {
+      current.splice(index, 1);
+    }
+    recalculateTotal(order.id, current);
+    setCalcItems(prev => ({ ...prev, [order.id]: current }));
+  };
+
+  // 1. Merchant Sends Price Quote with Itemized Details & Stock Status
+  const handleSendQuote = async (order: OrderItem) => {
+    const orderId = order.id;
+    const currentItems = getCalcItemsForOrder(order);
+    const validItems = currentItems.filter(i => i.name.trim().length > 0);
+
     const rawVal = quoteInputs[orderId];
-    const amount = parseFloat(rawVal || '0');
+    let amount = parseFloat(rawVal || '0');
 
     if (isNaN(amount) || amount <= 0) {
-      Alert.alert('Invalid Price', 'Please enter a valid total calculated bill amount (₹).');
+      amount = validItems
+        .filter(i => i.isAvailable)
+        .reduce((sum, i) => sum + (parseFloat(i.price) || 0), 0);
+    }
+
+    if (isNaN(amount) || amount <= 0) {
+      Alert.alert('Invalid Price', 'Please enter a price for available items. Total bill must be greater than ₹0.');
       return;
     }
+
+    const payloadItems = validItems.map(i => ({
+      name: i.name.trim(),
+      price: i.isAvailable ? (parseFloat(i.price) || 0) : 0,
+      isAvailable: i.isAvailable,
+      quantity: 1
+    }));
 
     setProcessingOrderId(orderId);
     try {
       const res = await fetch(`${BASE_URL}/orders/${orderId}/quote`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quotedAmount: amount })
+        body: JSON.stringify({
+          quotedAmount: amount,
+          items: payloadItems
+        })
       });
 
       if (res.ok) {
-        Alert.alert('Quote Dispatched! 🏷️', `Quote of ₹${amount} sent to the customer.`);
+        Alert.alert('Quote Dispatched! 🏷️', `Quote of ₹${amount} sent to customer with item breakdown.`);
         fetchOrders();
       } else {
         Alert.alert('Error', 'Failed to dispatch price quote.');
@@ -454,7 +546,13 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
             const isRejected = item.status === 'Cancelled' || item.status === 'DeclinedByCustomer' || item.status === 'RejectedByMerchant';
             const isProcessing = processingOrderId === item.id;
 
-            const orderCalcItems = calcItems[item.id] || [];
+            const orderCalcItems = getCalcItemsForOrder(item);
+            const availCount = orderCalcItems.filter(ci => ci.isAvailable).length;
+            const unavailCount = orderCalcItems.length - availCount;
+            const autoTotal = orderCalcItems
+              .filter(ci => ci.isAvailable)
+              .reduce((sum, ci) => sum + (parseFloat(ci.price) || 0), 0);
+            const displayTotal = quoteInputs[item.id] !== undefined ? quoteInputs[item.id] : (autoTotal > 0 ? autoTotal.toString() : '');
 
             return (
               <View style={styles.orderCard}>
@@ -502,6 +600,23 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
                   <Text style={styles.itemsContent}>{item.itemsText || 'General order'}</Text>
                 </View>
 
+                {/* Itemized Pricing Breakdown for Quoted, Approved, Packed orders */}
+                {!isQuoteNeeded && item.items && item.items.length > 0 && (
+                  <View style={styles.merchantItemizedCard}>
+                    <Text style={styles.merchantItemizedTitle}>Itemized Price & Stock Breakdown:</Text>
+                    {item.items.map((it, idx) => (
+                      <View key={idx} style={[styles.merchantItemRow, !it.isAvailable && styles.merchantItemRowUnavailable]}>
+                        <Text style={[styles.merchantItemNameText, !it.isAvailable && styles.merchantItemNameUnavailable]}>
+                          {it.isAvailable ? '• ' : '❌ '}{it.productName}
+                        </Text>
+                        <Text style={it.isAvailable ? styles.merchantItemPriceText : styles.merchantItemOutBadge}>
+                          {it.isAvailable ? `₹${it.unitPrice}` : 'Out of Stock'}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
                 {/* 1. STATE: NEW ORDER -> CALCULATE & QUOTE PRICE */}
                 {isQuoteNeeded && (
                   <View style={styles.actionBoxQuote}>
@@ -509,54 +624,128 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
                       <Calculator size={18} color="#D97706" />
                       <Text style={styles.actionBoxTitle}>Calculate & Send Price Quote</Text>
                     </View>
+                    <Text style={styles.actionDesc}>
+                      Enter the price for each item. Tap "Available" to mark any item as "Not Available" (Out of Stock). The total bill will be automatically calculated.
+                    </Text>
 
-                    {/* Optional Itemized Calculator Rows */}
-                    {orderCalcItems.length > 0 && (
-                      <View style={styles.calcItemsList}>
-                        {orderCalcItems.map((ci, idx) => (
-                          <View key={idx} style={styles.calcRow}>
+                    {/* Itemized Pricing & Availability Checklist */}
+                    <View style={styles.calcItemsList}>
+                      {orderCalcItems.map((ci, idx) => (
+                        <View
+                          key={idx}
+                          style={[
+                            styles.itemCalcCard,
+                            !ci.isAvailable && styles.itemCalcCardUnavailable
+                          ]}
+                        >
+                          {/* Row 1: Item Name + Availability Pill + Delete */}
+                          <View style={styles.itemCalcRowTop}>
                             <TextInput
-                              style={[styles.calcInput, { flex: 2 }]}
-                              placeholder="Item name"
+                              style={[
+                                styles.itemCalcNameInput,
+                                !ci.isAvailable && styles.itemCalcNameInputUnavailable
+                              ]}
+                              placeholder="Item name / qty"
                               value={ci.name}
-                              onChangeText={v => handleUpdateCalcItem(item.id, idx, 'name', v)}
+                              onChangeText={v => handleUpdateItemName(item, idx, v)}
                             />
-                            <TextInput
-                              style={[styles.calcInput, { flex: 1, marginLeft: 6 }]}
-                              placeholder="₹ Price"
-                              keyboardType="numeric"
-                              value={ci.price}
-                              onChangeText={v => handleUpdateCalcItem(item.id, idx, 'price', v)}
-                            />
-                          </View>
-                        ))}
-                      </View>
-                    )}
 
+                            {/* Stock Availability Toggle Button */}
+                            <TouchableOpacity
+                              style={[
+                                styles.availPillBtn,
+                                ci.isAvailable ? styles.availPillOn : styles.availPillOff
+                              ]}
+                              onPress={() => handleToggleItemAvailability(item, idx)}
+                            >
+                              {ci.isAvailable ? (
+                                <>
+                                  <CheckCircle2 size={13} color="#15803D" />
+                                  <Text style={styles.availPillTextOn}>Available</Text>
+                                </>
+                              ) : (
+                                <>
+                                  <XCircle size={13} color="#DC2626" />
+                                  <Text style={styles.availPillTextOff}>Not Available</Text>
+                                </>
+                              )}
+                            </TouchableOpacity>
+
+                            {/* Remove Item */}
+                            <TouchableOpacity
+                              style={styles.deleteItemBtn}
+                              onPress={() => handleRemoveCalcItem(item, idx)}
+                            >
+                              <Trash2 size={15} color="#9CA3AF" />
+                            </TouchableOpacity>
+                          </View>
+
+                          {/* Row 2: Price Input or Unavailable Marker */}
+                          <View style={styles.itemCalcRowBottom}>
+                            {ci.isAvailable ? (
+                              <View style={styles.priceInputWrap}>
+                                <Text style={styles.priceRupee}>₹</Text>
+                                <TextInput
+                                  style={styles.itemPriceInput}
+                                  placeholder="0.00"
+                                  placeholderTextColor="#9CA3AF"
+                                  keyboardType="numeric"
+                                  value={ci.price}
+                                  onChangeText={p => handleUpdateItemPrice(item, idx, p)}
+                                />
+                              </View>
+                            ) : (
+                              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <AlertTriangle size={13} color="#DC2626" style={{ marginRight: 4 }} />
+                                <Text style={styles.outOfStockNotice}>
+                                  Out of Stock • Excluded from customer bill
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+
+                    {/* Add More Items Button */}
                     <TouchableOpacity
                       style={styles.addCalcItemBtn}
-                      onPress={() => handleAddCalcItem(item.id)}
+                      onPress={() => handleAddCalcItem(item)}
                     >
                       <Plus size={14} color="#D97706" />
-                      <Text style={styles.addCalcItemText}>+ Add Item Price Calculator Row</Text>
+                      <Text style={styles.addCalcItemText}>+ Add Another Item Row</Text>
                     </TouchableOpacity>
 
-                    {/* Total Quoted Amount Input */}
+                    {/* Automatically Calculated Total Box */}
+                    <View style={styles.calcTotalSummaryBox}>
+                      <View style={styles.calcTotalRow}>
+                        <View>
+                          <Text style={styles.calcTotalLabel}>Total Calculated Bill:</Text>
+                          <Text style={styles.calcTotalSub}>
+                            {availCount} item{availCount !== 1 ? 's' : ''} available
+                            {unavailCount > 0 ? ` • ${unavailCount} out of stock` : ''}
+                          </Text>
+                        </View>
+                        <Text style={styles.calcTotalAmount}>₹{displayTotal || '0'}</Text>
+                      </View>
+                    </View>
+
+                    {/* Manual Total Override Input (Optional adjustment) */}
                     <View style={styles.quoteInputRow}>
                       <Text style={styles.rupeeSymbol}>₹</Text>
                       <TextInput
                         style={styles.quoteInput}
-                        placeholder="Total Quoted Bill (₹)"
+                        placeholder="Final Total Bill (₹)"
                         placeholderTextColor="#9CA3AF"
                         keyboardType="numeric"
-                        value={quoteInputs[item.id] || ''}
+                        value={displayTotal}
                         onChangeText={v => handlePriceInputChange(item.id, v)}
                       />
                     </View>
 
                     <TouchableOpacity
                       style={[styles.sendQuoteBtn, isProcessing && { opacity: 0.6 }]}
-                      onPress={() => handleSendQuote(item.id)}
+                      onPress={() => handleSendQuote(item)}
                       disabled={isProcessing}
                     >
                       {isProcessing ? (
@@ -564,7 +753,9 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
                       ) : (
                         <View style={styles.btnRow}>
                           <Send size={16} color="#FFF" style={{ marginRight: 6 }} />
-                          <Text style={styles.btnText}>Send Price Quote to Customer</Text>
+                          <Text style={styles.btnText}>
+                            Send Price Quote to Customer (₹{displayTotal || '0'})
+                          </Text>
                         </View>
                       )}
                     </TouchableOpacity>
@@ -940,6 +1131,181 @@ const styles = StyleSheet.create({
     color: '#D97706',
     fontWeight: '600',
     marginLeft: 4
+  },
+  itemCalcCard: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 8,
+  },
+  itemCalcCardUnavailable: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+  },
+  itemCalcRowTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  itemCalcNameInput: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    fontSize: 13,
+    color: '#111827',
+  },
+  itemCalcNameInputUnavailable: {
+    textDecorationLine: 'line-through',
+    color: '#9CA3AF',
+  },
+  availPillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+    marginLeft: 6,
+  },
+  availPillOn: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#86EFAC',
+  },
+  availPillOff: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FCA5A5',
+  },
+  availPillTextOn: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#15803D',
+    marginLeft: 4,
+  },
+  availPillTextOff: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#DC2626',
+    marginLeft: 4,
+  },
+  deleteItemBtn: {
+    padding: 6,
+    marginLeft: 4,
+  },
+  itemCalcRowBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  priceInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    width: 130,
+  },
+  priceRupee: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#374151',
+    marginRight: 2,
+  },
+  itemPriceInput: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#111827',
+    padding: 0,
+  },
+  outOfStockNotice: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#DC2626',
+    fontStyle: 'italic',
+  },
+  calcTotalSummaryBox: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  calcTotalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  calcTotalLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#92400E',
+  },
+  calcTotalAmount: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#B45309',
+  },
+  calcTotalSub: {
+    fontSize: 11,
+    color: '#78350F',
+    marginTop: 3,
+  },
+  merchantItemizedCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    padding: 10,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  merchantItemizedTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#374151',
+    marginBottom: 6,
+  },
+  merchantItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 3,
+  },
+  merchantItemRowUnavailable: {
+    opacity: 0.75,
+  },
+  merchantItemNameText: {
+    fontSize: 12,
+    color: '#1F2937',
+    flex: 1,
+  },
+  merchantItemNameUnavailable: {
+    textDecorationLine: 'line-through',
+    color: '#9CA3AF',
+  },
+  merchantItemPriceText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  merchantItemOutBadge: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#DC2626',
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
   quoteInputRow: {
     flexDirection: 'row',

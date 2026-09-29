@@ -93,6 +93,7 @@ try
     {
         db.Database.ExecuteSqlRaw("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
         EnsureUserSecurityColumns(db);
+        EnsureOrderItemColumns(db);
     }
     catch (Exception ex)
     {
@@ -136,6 +137,31 @@ static void EnsureUserSecurityColumns(StoreDbContext db)
     if (!columns.Contains("LockoutUntilUtc"))
     {
         db.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ADD COLUMN \"LockoutUntilUtc\" TEXT NULL;");
+    }
+}
+
+static void EnsureOrderItemColumns(StoreDbContext db)
+{
+    var connection = db.Database.GetDbConnection();
+    if (connection.State != System.Data.ConnectionState.Open)
+    {
+        connection.Open();
+    }
+
+    using var command = connection.CreateCommand();
+    command.CommandText = "PRAGMA table_info('OrderItems');";
+
+    var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    using var reader = command.ExecuteReader();
+    while (reader.Read())
+    {
+        var columnName = reader.GetString(1);
+        columns.Add(columnName);
+    }
+
+    if (!columns.Contains("IsAvailable"))
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"OrderItems\" ADD COLUMN \"IsAvailable\" INTEGER NOT NULL DEFAULT 1;");
     }
 }
 

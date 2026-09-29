@@ -93,6 +93,23 @@ public class OrdersController : ControllerBase
             CreatedAt = DateTime.UtcNow
         };
 
+        foreach (var line in lines)
+        {
+            var cleaned = line.Trim().TrimStart('•', '-', '*', ' ').Trim();
+            if (!string.IsNullOrWhiteSpace(cleaned))
+            {
+                order.Items.Add(new OrderItem
+                {
+                    OrderId = order.Id,
+                    ProductName = cleaned,
+                    UnitPrice = 0m,
+                    Quantity = 1,
+                    IsAvailable = true
+                });
+            }
+        }
+        order.ItemsCount = Math.Max(1, order.Items.Count);
+
         _context.Orders.Add(order);
         await _context.SaveChangesAsync();
 
@@ -219,7 +236,7 @@ public class OrdersController : ControllerBase
     [HttpPut("{id}/quote")]
     public async Task<IActionResult> QuotePrice(string id, [FromBody] QuoteRequest request)
     {
-        var order = await _context.Orders.FindAsync(id);
+        var order = await _context.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == id);
         if (order == null) return NotFound(new { message = "Order not found." });
 
         if (request.QuotedAmount <= 0)
@@ -230,11 +247,45 @@ public class OrdersController : ControllerBase
         order.QuotedAmount = request.QuotedAmount;
         order.TotalAmount = request.QuotedAmount;
         order.Status = "PriceQuoted";
+
+        if (request.Items != null && request.Items.Count > 0)
+        {
+            // Remove existing items and replace with updated prices & availability
+            _context.OrderItems.RemoveRange(order.Items);
+            order.Items.Clear();
+
+            var summaryLines = new List<string>();
+            foreach (var item in request.Items)
+            {
+                var orderItem = new OrderItem
+                {
+                    OrderId = order.Id,
+                    ProductName = string.IsNullOrWhiteSpace(item.Name) ? "Item" : item.Name.Trim(),
+                    UnitPrice = item.IsAvailable ? Math.Max(0, item.Price) : 0m,
+                    Quantity = item.Quantity > 0 ? item.Quantity : 1,
+                    IsAvailable = item.IsAvailable
+                };
+                order.Items.Add(orderItem);
+
+                if (orderItem.IsAvailable)
+                {
+                    summaryLines.Add($"• {orderItem.ProductName}: ₹{orderItem.UnitPrice}");
+                }
+                else
+                {
+                    summaryLines.Add($"• {orderItem.ProductName}: ❌ Not Available / Out of Stock");
+                }
+            }
+
+            order.ItemsText = string.Join("\n", summaryLines);
+            order.ItemsCount = order.Items.Count(i => i.IsAvailable);
+        }
         
         await _context.SaveChangesAsync();
 
         // Broadcast to Real-Time SignalR Hub
         await _hubContext.Clients.All.SendAsync("ReceivePriceQuote", new { orderId = order.Id, quoteAmount = order.QuotedAmount, order });
+        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order });
 
         return Ok(order);
     }
@@ -246,7 +297,7 @@ public class OrdersController : ControllerBase
     [HttpPut("{id}/approve")]
     public async Task<IActionResult> AcceptQuote(string id, [FromBody] AcceptQuoteRequest? request)
     {
-        var order = await _context.Orders.FindAsync(id);
+        var order = await _context.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == id);
         if (order == null) return NotFound(new { message = "Order not found." });
 
         order.PaymentMethod = string.IsNullOrWhiteSpace(request?.PaymentMethod) ? "Direct Transfer" : request.PaymentMethod;
@@ -271,7 +322,7 @@ public class OrdersController : ControllerBase
     [HttpPut("{id}/decline")]
     public async Task<IActionResult> DisapproveOrder(string id, [FromBody] RejectOrderRequest? request)
     {
-        var order = await _context.Orders.FindAsync(id);
+        var order = await _context.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == id);
         if (order == null) return NotFound(new { message = "Order not found." });
 
         string role = request?.Role?.Trim().ToLower() ?? string.Empty;
@@ -327,7 +378,7 @@ public class OrdersController : ControllerBase
     [HttpPut("{id}/packed")]
     public async Task<IActionResult> MarkPacked(string id)
     {
-        var order = await _context.Orders.FindAsync(id);
+        var order = await _context.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == id);
         if (order == null) return NotFound(new { message = "Order not found." });
 
         order.Status = "Packed";
@@ -342,7 +393,7 @@ public class OrdersController : ControllerBase
     [HttpPut("{id}/delivered-and-paid")]
     public async Task<IActionResult> MarkDeliveredAndPaid(string id)
     {
-        var order = await _context.Orders.FindAsync(id);
+        var order = await _context.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == id);
         if (order == null) return NotFound(new { message = "Order not found." });
 
         order.Status = "DeliveredAndPaymentDone";
@@ -357,7 +408,7 @@ public class OrdersController : ControllerBase
     [HttpPut("{id}/customer-confirm")]
     public async Task<IActionResult> CustomerConfirmCompleted(string id)
     {
-        var order = await _context.Orders.FindAsync(id);
+        var order = await _context.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == id);
         if (order == null) return NotFound(new { message = "Order not found." });
 
         order.Status = "Completed";
@@ -372,7 +423,7 @@ public class OrdersController : ControllerBase
     [HttpPut("{id}/status")]
     public async Task<IActionResult> UpdateStatus(string id, [FromBody] UpdateStatusRequest request)
     {
-        var order = await _context.Orders.FindAsync(id);
+        var order = await _context.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == id);
         if (order == null) return NotFound(new { message = "Order not found." });
 
         order.Status = request.Status;
@@ -570,7 +621,19 @@ public class OrdersController : ControllerBase
 
 public record CustomListOrderRequest(string? CustomerName, string? CustomerPhone, string? ShopName, string ItemsText);
 public record QuickBillRequest(string? CustomerName, string? CustomerPhone, string? ShopName, string? ItemsText, int ItemsCount, decimal TotalAmount, string? PaymentMethod);
-public record QuoteRequest(decimal QuotedAmount);
+public class QuoteItemDto
+{
+    public string Name { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+    public bool IsAvailable { get; set; } = true;
+    public int Quantity { get; set; } = 1;
+}
+
+public class QuoteRequest
+{
+    public decimal QuotedAmount { get; set; }
+    public List<QuoteItemDto>? Items { get; set; }
+}
 public record AcceptQuoteRequest(string? PaymentMethod);
 public record UpdateStatusRequest(string Status);
 public record CatalogCartItem(string ProductId, int Quantity);

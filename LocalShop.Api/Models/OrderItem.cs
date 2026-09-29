@@ -1,4 +1,4 @@
-﻿namespace LocalShop.Api.Models;
+namespace LocalShop.Api.Models;
 
 public class OrderItem
 {
@@ -8,5 +8,6 @@ public class OrderItem
     public string ProductName { get; set; } = string.Empty;
     public decimal UnitPrice { get; set; }
     public int Quantity { get; set; } = 1;
-    public decimal Subtotal => UnitPrice * Quantity;
+    public bool IsAvailable { get; set; } = true;
+    public decimal Subtotal => IsAvailable ? UnitPrice * Quantity : 0m;
 }

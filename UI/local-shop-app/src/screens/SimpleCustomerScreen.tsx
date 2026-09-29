@@ -25,7 +25,8 @@ import {
   Tag,
   Package,
   IndianRupee,
-  XCircle
+  XCircle,
+  AlertTriangle
 } from 'lucide-react-native';
 import { BASE_URL } from '../services/apiConfig';
 import { signalRService } from '../services/signalRService';
@@ -37,6 +38,16 @@ interface StoreItem {
   isOpen: boolean;
   operatingHours?: string;
   minOrderAmount?: number;
+}
+
+interface OrderItemDetail {
+  id?: string;
+  orderId?: string;
+  productId?: string;
+  productName: string;
+  unitPrice: number;
+  quantity: number;
+  isAvailable?: boolean;
 }
 
 interface OrderItem {
@@ -51,6 +62,7 @@ interface OrderItem {
   status: string;
   createdAt: string;
   deliveryOtp?: string;
+  items?: OrderItemDetail[];
 }
 
 export default function SimpleCustomerScreen() {
@@ -618,6 +630,31 @@ export default function SimpleCustomerScreen() {
                       <Text style={styles.itemsBoxContent}>{item.itemsText || 'General grocery order'}</Text>
                     </View>
 
+                    {/* Confirmed Itemized Breakdown for Approved/Processing/Packed orders */}
+                    {!isWaitingQuote && !isPriceQuoted && item.items && item.items.length > 0 && (
+                      <View style={styles.customerItemizedCard}>
+                        <Text style={styles.customerItemizedTitle}>Confirmed Items & Prices:</Text>
+                        {item.items.map((it, idx) => (
+                          <View key={idx} style={[styles.customerItemRow, !it.isAvailable && styles.customerItemRowUnavailable]}>
+                            <View style={{ flex: 1, marginRight: 8 }}>
+                              <Text style={[styles.customerItemNameText, !it.isAvailable && styles.customerItemNameUnavailable]}>
+                                {it.isAvailable ? '• ' : '❌ '}{it.productName}
+                              </Text>
+                            </View>
+                            <View style={{ alignItems: 'flex-end' }}>
+                              {it.isAvailable ? (
+                                <Text style={styles.customerItemPriceText}>₹{it.unitPrice}</Text>
+                              ) : (
+                                <View style={styles.customerOutBadge}>
+                                  <Text style={styles.customerOutBadgeText}>Out of Stock</Text>
+                                </View>
+                              )}
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
                     {/* STATUS WORKFLOW HIGHLIGHT */}
 
                     {/* 1. Waiting for Quote */}
@@ -650,6 +687,40 @@ export default function SimpleCustomerScreen() {
                           <Tag size={18} color="#059669" />
                           <Text style={styles.bannerTitleAction}>Price Quote Ready!</Text>
                         </View>
+
+                        {/* Itemized Price & Availability Breakdown */}
+                        {item.items && item.items.length > 0 && (
+                          <View style={styles.customerItemizedCard}>
+                            <Text style={styles.customerItemizedTitle}>Itemized Price & Stock Availability:</Text>
+                            {item.items.map((it, idx) => (
+                              <View key={idx} style={[styles.customerItemRow, !it.isAvailable && styles.customerItemRowUnavailable]}>
+                                <View style={{ flex: 1, marginRight: 8 }}>
+                                  <Text style={[styles.customerItemNameText, !it.isAvailable && styles.customerItemNameUnavailable]}>
+                                    {it.isAvailable ? '• ' : '❌ '}{it.productName}
+                                  </Text>
+                                </View>
+                                <View style={{ alignItems: 'flex-end' }}>
+                                  {it.isAvailable ? (
+                                    <Text style={styles.customerItemPriceText}>₹{it.unitPrice}</Text>
+                                  ) : (
+                                    <View style={styles.customerOutBadge}>
+                                      <Text style={styles.customerOutBadgeText}>Not Available</Text>
+                                    </View>
+                                  )}
+                                </View>
+                              </View>
+                            ))}
+                            {item.items.some(it => !it.isAvailable) && (
+                              <View style={styles.customerUnavailableNoticeBox}>
+                                <AlertTriangle size={13} color="#B45309" style={{ marginRight: 5 }} />
+                                <Text style={styles.customerUnavailableNoticeText}>
+                                  Some requested items are out of stock. The total bill includes only available items.
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                        )}
+
                         <Text style={styles.priceHighlight}>
                           Total Calculated Bill: ₹{item.quotedAmount || item.totalAmount}
                         </Text>
@@ -1330,5 +1401,75 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#DC2626'
+  },
+  customerItemizedCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    padding: 10,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  customerItemizedTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#374151',
+    marginBottom: 6,
+  },
+  customerItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#F3F4F6',
+  },
+  customerItemRowUnavailable: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: 4,
+    paddingHorizontal: 4,
+  },
+  customerItemNameText: {
+    fontSize: 13,
+    color: '#1F2937',
+  },
+  customerItemNameUnavailable: {
+    textDecorationLine: 'line-through',
+    color: '#9CA3AF',
+  },
+  customerItemPriceText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  customerOutBadge: {
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  customerOutBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+  customerUnavailableNoticeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 6,
+    padding: 8,
+    marginTop: 8,
+  },
+  customerUnavailableNoticeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#92400E',
+    flex: 1,
   }
 });
