@@ -24,7 +24,8 @@ import {
   Check,
   Tag,
   Package,
-  IndianRupee
+  IndianRupee,
+  XCircle
 } from 'lucide-react-native';
 import { BASE_URL } from '../services/apiConfig';
 import { signalRService } from '../services/signalRService';
@@ -243,6 +244,87 @@ export default function SimpleCustomerScreen() {
     } finally {
       setProcessingOrderId(null);
     }
+  };
+
+  // 2b. Customer Does Not Approve Quoted Price
+  const handleDisapproveQuote = (orderId: string, amount: number) => {
+    Alert.alert(
+      'Do Not Approve Order',
+      `Are you sure you do not want to approve this order with quoted bill ₹${amount}? The order will be cancelled.`,
+      [
+        { text: 'Keep Order', style: 'cancel' },
+        {
+          text: 'Do Not Approve',
+          style: 'destructive',
+          onPress: async () => {
+            setProcessingOrderId(orderId);
+            try {
+              const res = await fetch(`${BASE_URL}/orders/${orderId}/disapprove`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  role: 'customer',
+                  reason: 'Customer declined the quoted price and chose not to approve the order.'
+                })
+              });
+
+              if (res.ok) {
+                Alert.alert(
+                  'Order Not Approved ❌',
+                  'You chose not to approve this order. The store has been notified and the order is closed.'
+                );
+                loadMyOrders();
+              } else {
+                Alert.alert('Error', 'Failed to decline order.');
+              }
+            } catch {
+              Alert.alert('Network Error', 'Cannot reach server.');
+            } finally {
+              setProcessingOrderId(null);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Customer cancels order while waiting for quote
+  const handleCancelPendingOrder = (orderId: string) => {
+    Alert.alert(
+      'Cancel Order Request',
+      'Are you sure you want to cancel this grocery order request?',
+      [
+        { text: 'Keep Order', style: 'cancel' },
+        {
+          text: 'Cancel Request',
+          style: 'destructive',
+          onPress: async () => {
+            setProcessingOrderId(orderId);
+            try {
+              const res = await fetch(`${BASE_URL}/orders/${orderId}/disapprove`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  role: 'customer',
+                  reason: 'Customer cancelled the request before quotation.'
+                })
+              });
+
+              if (res.ok) {
+                Alert.alert('Order Cancelled', 'Your order request has been cancelled.');
+                loadMyOrders();
+              } else {
+                Alert.alert('Error', 'Failed to cancel order.');
+              }
+            } catch {
+              Alert.alert('Network Error', 'Cannot reach server.');
+            } finally {
+              setProcessingOrderId(null);
+            }
+          }
+        }
+      ]
+    );
   };
 
   // 3. Customer Approves Delivery & Payment Done
@@ -488,15 +570,45 @@ export default function SimpleCustomerScreen() {
                 const isDeliveredAndPaid = item.status === 'DeliveredAndPaymentDone';
                 const isCompleted = item.status === 'Completed' || item.status === 'Delivered';
                 const isWaitingQuote = item.status === 'QuoteRequested' || item.status === 'Placed';
+                const isRejected = item.status === 'Cancelled' || item.status === 'DeclinedByCustomer' || item.status === 'RejectedByMerchant';
                 const isProcessing = processingOrderId === item.id;
 
                 return (
                   <View style={styles.orderCard}>
-                    {/* Order Top Bar */}
+                    {/* Order Top Bar with Status Badge */}
                     <View style={styles.orderTopBar}>
-                      <View>
+                      <View style={{ flex: 1, marginRight: 8 }}>
                         <Text style={styles.orderShopName}>{item.shopName}</Text>
                         <Text style={styles.orderId}>Order #{item.id}</Text>
+                      </View>
+                      <View style={[
+                        styles.statusBadgePill,
+                        isWaitingQuote ? styles.pillOrange :
+                        isPriceQuoted ? styles.pillEmerald :
+                        isApproved ? styles.pillBlue :
+                        isPacked ? styles.pillPurple :
+                        isDeliveredAndPaid ? styles.pillAmber :
+                        isCompleted ? styles.pillGreen :
+                        isRejected ? styles.pillRed : styles.pillGray
+                      ]}>
+                        <Text style={[
+                          styles.statusBadgePillText,
+                          isWaitingQuote ? { color: '#B45309' } :
+                          isPriceQuoted ? { color: '#047857' } :
+                          isApproved ? { color: '#1D4ED8' } :
+                          isPacked ? { color: '#6D28D9' } :
+                          isDeliveredAndPaid ? { color: '#C2410C' } :
+                          isCompleted ? { color: '#15803D' } :
+                          isRejected ? { color: '#B91C1C' } : { color: '#4B5563' }
+                        ]}>
+                          {isWaitingQuote ? '⏳ Awaiting Quote' :
+                           isPriceQuoted ? '🏷️ Action Needed' :
+                           isApproved ? '✅ Approved' :
+                           isPacked ? '📦 Packed' :
+                           isDeliveredAndPaid ? '💰 Confirm Delivery' :
+                           isCompleted ? '🎉 Completed' :
+                           isRejected ? (item.status === 'DeclinedByCustomer' ? '❌ Not Approved' : item.status === 'RejectedByMerchant' ? '❌ Declined by Store' : '❌ Cancelled') : item.status}
+                        </Text>
                       </View>
                     </View>
 
@@ -511,17 +623,27 @@ export default function SimpleCustomerScreen() {
                     {/* 1. Waiting for Quote */}
                     {isWaitingQuote && (
                       <View style={[styles.statusBanner, styles.bannerWaiting]}>
-                        <Clock size={16} color="#D97706" />
-                        <View style={{ flex: 1, marginLeft: 8 }}>
-                          <Text style={styles.bannerTitleWaiting}>Awaiting Merchant Price Quote</Text>
-                          <Text style={styles.bannerDesc}>
-                            The shopkeeper is checking shelf availability and calculating your total bill.
-                          </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                          <Clock size={16} color="#D97706" style={{ marginTop: 2 }} />
+                          <View style={{ flex: 1, marginLeft: 8 }}>
+                            <Text style={styles.bannerTitleWaiting}>Awaiting Merchant Price Quote</Text>
+                            <Text style={styles.bannerDesc}>
+                              The shopkeeper is checking shelf availability and calculating your total bill.
+                            </Text>
+                          </View>
                         </View>
+
+                        <TouchableOpacity
+                          style={styles.cancelRequestBtn}
+                          onPress={() => handleCancelPendingOrder(item.id)}
+                          disabled={isProcessing}
+                        >
+                          <Text style={styles.cancelRequestBtnText}>✕ Cancel Order Request</Text>
+                        </TouchableOpacity>
                       </View>
                     )}
 
-                    {/* 2. Price Quoted -> Customer Approval Required */}
+                    {/* 2. Price Quoted -> Customer Approval or Disapproval */}
                     {isPriceQuoted && (
                       <View style={[styles.statusBanner, styles.bannerActionRequired]}>
                         <View style={styles.bannerHeaderRow}>
@@ -532,25 +654,40 @@ export default function SimpleCustomerScreen() {
                           Total Calculated Bill: ₹{item.quotedAmount || item.totalAmount}
                         </Text>
                         <Text style={styles.bannerDesc}>
-                          The merchant has quoted the price for your grocery list. Please approve to confirm the order.
+                          The merchant has quoted the price for your grocery list. Please review and approve to confirm the order, or decline if you do not want it.
                         </Text>
 
-                        <TouchableOpacity
-                          style={[styles.actionBtnApprove, isProcessing && { opacity: 0.6 }]}
-                          onPress={() => handleApproveQuote(item.id, item.quotedAmount || item.totalAmount)}
-                          disabled={isProcessing}
-                        >
-                          {isProcessing ? (
-                            <ActivityIndicator color="#FFF" />
-                          ) : (
+                        <View style={styles.quoteActionButtonsCol}>
+                          <TouchableOpacity
+                            style={[styles.actionBtnApprove, isProcessing && { opacity: 0.6 }]}
+                            onPress={() => handleApproveQuote(item.id, item.quotedAmount || item.totalAmount)}
+                            disabled={isProcessing}
+                          >
+                            {isProcessing ? (
+                              <ActivityIndicator color="#FFF" />
+                            ) : (
+                              <View style={styles.actionBtnRow}>
+                                <CheckCircle2 size={18} color="#FFF" style={{ marginRight: 6 }} />
+                                <Text style={styles.actionBtnText}>
+                                  Approve Order (₹{item.quotedAmount || item.totalAmount})
+                                </Text>
+                              </View>
+                            )}
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={[styles.actionBtnDisapprove, isProcessing && { opacity: 0.6 }]}
+                            onPress={() => handleDisapproveQuote(item.id, item.quotedAmount || item.totalAmount)}
+                            disabled={isProcessing}
+                          >
                             <View style={styles.actionBtnRow}>
-                              <CheckCircle2 size={18} color="#FFF" style={{ marginRight: 6 }} />
-                              <Text style={styles.actionBtnText}>
-                                Approve Order (₹{item.quotedAmount || item.totalAmount})
+                              <XCircle size={18} color="#DC2626" style={{ marginRight: 6 }} />
+                              <Text style={styles.actionBtnDisapproveText}>
+                                Do Not Approve / Decline
                               </Text>
                             </View>
-                          )}
-                        </TouchableOpacity>
+                          </TouchableOpacity>
+                        </View>
                       </View>
                     )}
 
@@ -618,6 +755,29 @@ export default function SimpleCustomerScreen() {
                           <Text style={styles.bannerTitleCompleted}>Order Completed & Verified 🎉</Text>
                           <Text style={styles.bannerDesc}>
                             Total Bill: ₹{item.totalAmount} • Both delivery and payment verified.
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+
+                    {/* 7. Cancelled or Not Approved */}
+                    {isRejected && (
+                      <View style={[styles.statusBanner, styles.bannerCancelled]}>
+                        <XCircle size={16} color="#DC2626" style={{ marginTop: 2 }} />
+                        <View style={{ flex: 1, marginLeft: 8 }}>
+                          <Text style={styles.bannerTitleCancelled}>
+                            {item.status === 'DeclinedByCustomer'
+                              ? 'Order Not Approved (Declined)'
+                              : item.status === 'RejectedByMerchant'
+                              ? 'Order Declined by Store'
+                              : 'Order Cancelled'}
+                          </Text>
+                          <Text style={styles.bannerDesc}>
+                            {item.status === 'DeclinedByCustomer'
+                              ? 'You chose not to approve this quote. The order is closed.'
+                              : item.status === 'RejectedByMerchant'
+                              ? 'The store was unable to fulfill this order and did not approve it.'
+                              : 'This order was cancelled.'}
                           </Text>
                         </View>
                       </View>
@@ -1083,5 +1243,92 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 14,
     fontWeight: '700'
+  },
+  statusBadgePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1
+  },
+  statusBadgePillText: {
+    fontSize: 11,
+    fontWeight: '700'
+  },
+  pillOrange: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FDE68A'
+  },
+  pillEmerald: {
+    backgroundColor: '#D1FAE5',
+    borderColor: '#A7F3D0'
+  },
+  pillBlue: {
+    backgroundColor: '#DBEAFE',
+    borderColor: '#BFDBFE'
+  },
+  pillPurple: {
+    backgroundColor: '#EDE9FE',
+    borderColor: '#DDD6FE'
+  },
+  pillAmber: {
+    backgroundColor: '#FFEDD5',
+    borderColor: '#FED7AA'
+  },
+  pillGreen: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#BBF7D0'
+  },
+  pillRed: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FECACA'
+  },
+  pillGray: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#E5E7EB'
+  },
+  cancelRequestBtn: {
+    marginTop: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#FFF',
+    alignSelf: 'flex-start'
+  },
+  cancelRequestBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280'
+  },
+  quoteActionButtonsCol: {
+    marginTop: 8
+  },
+  actionBtnDisapprove: {
+    backgroundColor: '#FFF',
+    borderWidth: 1.5,
+    borderColor: '#FCA5A5',
+    borderRadius: 8,
+    paddingVertical: 9,
+    marginTop: 8,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  actionBtnDisapproveText: {
+    color: '#DC2626',
+    fontSize: 14,
+    fontWeight: '700'
+  },
+  bannerCancelled: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    flexDirection: 'row',
+    alignItems: 'flex-start'
+  },
+  bannerTitleCancelled: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#DC2626'
   }
 });

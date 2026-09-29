@@ -22,7 +22,8 @@ import {
   Phone,
   Calculator,
   Plus,
-  Send
+  Send,
+  XCircle
 } from 'lucide-react-native';
 import { BASE_URL } from '../services/apiConfig';
 import { signalRService } from '../services/signalRService';
@@ -226,6 +227,45 @@ export default function SimpleMerchantScreen({ shopName = 'Kirana Junction' }: S
     }
   };
 
+  // 1b. Merchant Does Not Approve / Declines Customer Order
+  const handleDeclineOrder = (orderId: string, customerName?: string) => {
+    Alert.alert(
+      'Do Not Approve Order',
+      `Are you sure you want to decline / not approve the order from ${customerName || 'the customer'}?`,
+      [
+        { text: 'Keep Order', style: 'cancel' },
+        {
+          text: 'Do Not Approve',
+          style: 'destructive',
+          onPress: async () => {
+            setProcessingOrderId(orderId);
+            try {
+              const res = await fetch(`${BASE_URL}/orders/${orderId}/disapprove`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  role: 'merchant',
+                  reason: 'Store was unable to fulfill this grocery order.'
+                })
+              });
+
+              if (res.ok) {
+                Alert.alert('Order Declined ❌', `Order from ${customerName || 'customer'} was not approved.`);
+                fetchOrders();
+              } else {
+                Alert.alert('Error', 'Failed to decline order.');
+              }
+            } catch {
+              Alert.alert('Network Error', 'Cannot reach server.');
+            } finally {
+              setProcessingOrderId(null);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   // 2. Merchant Marks Order Packed & Ready
   const handleMarkPacked = async (orderId: string) => {
     setProcessingOrderId(orderId);
@@ -411,18 +451,48 @@ export default function SimpleMerchantScreen({ shopName = 'Kirana Junction' }: S
             const isPackedReadyToDeliver = item.status === 'Packed';
             const isDeliveredWaitingCustomer = item.status === 'DeliveredAndPaymentDone';
             const isCompleted = item.status === 'Completed' || item.status === 'Delivered';
+            const isRejected = item.status === 'Cancelled' || item.status === 'DeclinedByCustomer' || item.status === 'RejectedByMerchant';
             const isProcessing = processingOrderId === item.id;
 
             const orderCalcItems = calcItems[item.id] || [];
 
             return (
               <View style={styles.orderCard}>
-                {/* Order Top Header */}
+                {/* Order Top Header with Status Pill */}
                 <View style={styles.orderTop}>
-                  <View>
+                  <View style={{ flex: 1, marginRight: 8 }}>
                     <Text style={styles.customerName}>{item.customerName || 'Customer'}</Text>
                     <Text style={styles.customerPhone}>📞 {item.customerPhone || 'No Phone'}</Text>
                     <Text style={styles.orderIdText}>Order #{item.id}</Text>
+                  </View>
+                  <View style={[
+                    styles.statusBadgePill,
+                    isQuoteNeeded ? styles.pillOrange :
+                    isWaitingApproval ? styles.pillBlue :
+                    isApprovedReadyToPack ? styles.pillGreen :
+                    isPackedReadyToDeliver ? styles.pillPurple :
+                    isDeliveredWaitingCustomer ? styles.pillAmber :
+                    isCompleted ? styles.pillGreen :
+                    isRejected ? styles.pillRed : styles.pillGray
+                  ]}>
+                    <Text style={[
+                      styles.statusBadgePillText,
+                      isQuoteNeeded ? { color: '#B45309' } :
+                      isWaitingApproval ? { color: '#1D4ED8' } :
+                      isApprovedReadyToPack ? { color: '#15803D' } :
+                      isPackedReadyToDeliver ? { color: '#6D28D9' } :
+                      isDeliveredWaitingCustomer ? { color: '#C2410C' } :
+                      isCompleted ? { color: '#15803D' } :
+                      isRejected ? { color: '#B91C1C' } : { color: '#4B5563' }
+                    ]}>
+                      {isQuoteNeeded ? '⏳ Quote Needed' :
+                       isWaitingApproval ? '🏷️ Quoted' :
+                       isApprovedReadyToPack ? '✅ Approved' :
+                       isPackedReadyToDeliver ? '📦 Packed' :
+                       isDeliveredWaitingCustomer ? '💰 Payment Pending' :
+                       isCompleted ? '🎉 Completed' :
+                       isRejected ? (item.status === 'DeclinedByCustomer' ? '❌ Customer Declined' : item.status === 'RejectedByMerchant' ? '❌ Not Approved' : '❌ Cancelled') : item.status}
+                    </Text>
                   </View>
                 </View>
 
@@ -498,21 +568,42 @@ export default function SimpleMerchantScreen({ shopName = 'Kirana Junction' }: S
                         </View>
                       )}
                     </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.declineOrderBtn, isProcessing && { opacity: 0.6 }]}
+                      onPress={() => handleDeclineOrder(item.id, item.customerName)}
+                      disabled={isProcessing}
+                    >
+                      <View style={styles.btnRow}>
+                        <XCircle size={15} color="#DC2626" style={{ marginRight: 6 }} />
+                        <Text style={styles.declineOrderBtnText}>Do Not Approve / Decline Order</Text>
+                      </View>
+                    </TouchableOpacity>
                   </View>
                 )}
 
                 {/* 2. STATE: QUOTE SENT -> WAITING FOR CUSTOMER APPROVAL */}
                 {isWaitingApproval && (
                   <View style={styles.infoBannerQuoteSent}>
-                    <Clock size={16} color="#059669" />
-                    <View style={{ flex: 1, marginLeft: 8 }}>
-                      <Text style={styles.infoBannerTitle}>
-                        Quote of ₹{item.quotedAmount || item.totalAmount} Sent
-                      </Text>
-                      <Text style={styles.infoBannerSub}>
-                        Waiting for customer to approve the total bill on their app.
-                      </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Clock size={16} color="#059669" />
+                      <View style={{ flex: 1, marginLeft: 8 }}>
+                        <Text style={styles.infoBannerTitle}>
+                          Quote of ₹{item.quotedAmount || item.totalAmount} Sent
+                        </Text>
+                        <Text style={styles.infoBannerSub}>
+                          Waiting for customer to approve the total bill on their app.
+                        </Text>
+                      </View>
                     </View>
+
+                    <TouchableOpacity
+                      style={styles.cancelQuoteBtn}
+                      onPress={() => handleDeclineOrder(item.id, item.customerName)}
+                      disabled={isProcessing}
+                    >
+                      <Text style={styles.cancelQuoteBtnText}>✕ Cancel / Withdraw Quote</Text>
+                    </TouchableOpacity>
                   </View>
                 )}
 
@@ -603,6 +694,29 @@ export default function SimpleMerchantScreen({ shopName = 'Kirana Junction' }: S
                       </Text>
                       <Text style={styles.infoBannerSub}>
                         Total Collected: ₹{item.totalAmount} • Order successfully closed.
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* 7. STATE: DECLINED / CANCELLED / NOT APPROVED */}
+                {isRejected && (
+                  <View style={styles.infoBannerDeclined}>
+                    <XCircle size={16} color="#DC2626" style={{ marginTop: 2 }} />
+                    <View style={{ flex: 1, marginLeft: 8 }}>
+                      <Text style={styles.infoBannerTitleDeclined}>
+                        {item.status === 'DeclinedByCustomer'
+                          ? 'Customer Did Not Approve Quote'
+                          : item.status === 'RejectedByMerchant'
+                          ? 'Order Declined by Store (Not Approved)'
+                          : 'Order Cancelled'}
+                      </Text>
+                      <Text style={styles.infoBannerSubDeclined}>
+                        {item.status === 'DeclinedByCustomer'
+                          ? 'The customer chose not to approve the quoted bill. No further action needed.'
+                          : item.status === 'RejectedByMerchant'
+                          ? 'You chose not to approve this order from the customer.'
+                          : 'This order was cancelled.'}
                       </Text>
                     </View>
                   </View>
@@ -983,4 +1097,91 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
+  statusBadgePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1
+  },
+  statusBadgePillText: {
+    fontSize: 11,
+    fontWeight: '700'
+  },
+  pillOrange: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FDE68A'
+  },
+  pillBlue: {
+    backgroundColor: '#DBEAFE',
+    borderColor: '#BFDBFE'
+  },
+  pillGreen: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#BBF7D0'
+  },
+  pillPurple: {
+    backgroundColor: '#EDE9FE',
+    borderColor: '#DDD6FE'
+  },
+  pillAmber: {
+    backgroundColor: '#FFEDD5',
+    borderColor: '#FED7AA'
+  },
+  pillRed: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FECACA'
+  },
+  pillGray: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#E5E7EB'
+  },
+  declineOrderBtn: {
+    backgroundColor: '#FFF',
+    borderWidth: 1.5,
+    borderColor: '#FCA5A5',
+    borderRadius: 8,
+    paddingVertical: 9,
+    marginTop: 8,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  declineOrderBtnText: {
+    color: '#DC2626',
+    fontSize: 13,
+    fontWeight: '700'
+  },
+  cancelQuoteBtn: {
+    marginTop: 8,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#FFF',
+    alignSelf: 'flex-start'
+  },
+  cancelQuoteBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6B7280'
+  },
+  infoBannerDeclined: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    flexDirection: 'row',
+    alignItems: 'flex-start'
+  },
+  infoBannerTitleDeclined: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#DC2626'
+  },
+  infoBannerSubDeclined: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 2
+  }
 });

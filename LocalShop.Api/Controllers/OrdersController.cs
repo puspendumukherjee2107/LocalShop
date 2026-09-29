@@ -260,6 +260,68 @@ public class OrdersController : ControllerBase
         return Ok(order);
     }
 
+    // PUT: api/orders/{id}/disapprove
+    // PUT: api/orders/{id}/reject
+    // PUT: api/orders/{id}/reject-quote
+    // PUT: api/orders/{id}/decline
+    // Customer or Merchant chooses not to approve the order or price quote
+    [HttpPut("{id}/disapprove")]
+    [HttpPut("{id}/reject")]
+    [HttpPut("{id}/reject-quote")]
+    [HttpPut("{id}/decline")]
+    public async Task<IActionResult> DisapproveOrder(string id, [FromBody] RejectOrderRequest? request)
+    {
+        var order = await _context.Orders.FindAsync(id);
+        if (order == null) return NotFound(new { message = "Order not found." });
+
+        string role = request?.Role?.Trim().ToLower() ?? string.Empty;
+        string reason = request?.Reason?.Trim() ?? string.Empty;
+
+        if (role == "customer")
+        {
+            order.Status = "DeclinedByCustomer";
+        }
+        else if (role == "merchant")
+        {
+            order.Status = "RejectedByMerchant";
+        }
+        else
+        {
+            order.Status = "Cancelled";
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            order.ReviewComment = string.IsNullOrEmpty(order.ReviewComment)
+                ? $"Status Note: {reason}"
+                : $"{order.ReviewComment} | Note: {reason}";
+        }
+
+        if (order.PaymentMethod != "Cash" && order.TotalAmount > 0)
+        {
+            order.RefundStatus = "Pending";
+        }
+
+        // Restore catalog item stock in Products table
+        var items = await _context.OrderItems.Where(i => i.OrderId == id).ToListAsync();
+        foreach (var item in items)
+        {
+            var product = await _context.Products.FindAsync(item.ProductId);
+            if (product != null)
+            {
+                product.Stock += item.Quantity;
+                product.IsAvailable = true;
+            }
+        }
+
+        await _context.SaveChangesAsync();
+
+        // Broadcast to Real-Time SignalR Hub
+        await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", new { orderId = order.Id, status = order.Status, order });
+
+        return Ok(order);
+    }
+
     // PUT: api/orders/{id}/packed
     // Merchant sends confirmation once order is packed
     [HttpPut("{id}/packed")]
@@ -338,7 +400,7 @@ public class OrdersController : ControllerBase
             storeName = o.ShopName,
             amount = o.TotalAmount,
             method = o.PaymentMethod ?? "UPI",
-            status = o.Status == "Cancelled" ? "Refunded" : "Successful",
+            status = (o.Status == "Cancelled" || o.Status == "DeclinedByCustomer" || o.Status == "RejectedByMerchant") ? "Refunded" : "Successful",
             date = o.CreatedAt.ToString("dd MMMM yyyy")
         });
 
@@ -523,3 +585,4 @@ public class RateOrderRequest
     public string? GetEffectiveComment() => !string.IsNullOrWhiteSpace(ReviewComment) ? ReviewComment : Comment;
 }
 public record SendMessageRequest(string? SenderRole, string? SenderName, string MessageText);
+public record RejectOrderRequest(string? Role, string? Reason);

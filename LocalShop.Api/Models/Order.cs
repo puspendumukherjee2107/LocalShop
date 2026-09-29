@@ -8,7 +8,7 @@ public class Order
     public string ShopName { get; set; } = "Kirana Junction";
     public int ItemsCount { get; set; }
     public decimal TotalAmount { get; set; }
-    public string Status { get; set; } = "Placed"; // QuoteRequested, PriceQuoted, Placed, Processing, Delivered, Cancelled
+    public string Status { get; set; } = "Placed"; // QuoteRequested, PriceQuoted, Placed, Approved, Processing, Packed, DeliveredAndPaymentDone, Completed, Cancelled, DeclinedByCustomer, RejectedByMerchant
     public string RefundStatus { get; set; } = "None"; // None, Pending, Processed
     public string PaymentMethod { get; set; } = "UPI"; // UPI, Card, Cash
     public string OrderType { get; set; } = "CustomList"; // CustomList, Catalog, QuickBill
