@@ -19,8 +19,22 @@ else if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPNETCORE_URL
     builder.WebHost.UseUrls("http://0.0.0.0:5000");
 }
 
+var (dbProvider, dbConnectionString) = GetDatabaseConfiguration(builder.Configuration);
+
 builder.Services.AddDbContext<StoreDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+{
+    if (dbProvider == "PostgreSQL")
+    {
+        options.UseNpgsql(dbConnectionString, npgsqlOptions =>
+        {
+            npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorCodesToAdd: null);
+        });
+    }
+    else
+    {
+        options.UseSqlite(dbConnectionString);
+    }
+});
 
 builder.Services.AddCors(options =>
 {
@@ -110,39 +124,30 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
-try
+using (var scope = app.Services.CreateScope())
 {
-    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<StoreDbContext>();
     try
     {
-        if (db.Database.GetPendingMigrations().Any())
-        {
-            db.Database.Migrate();
-        }
-        else
-        {
-            db.Database.EnsureCreated();
-        }
-    }
-    catch
-    {
-        db.Database.EnsureCreated();
-    }
-
-    try
-    {
-        db.Database.ExecuteSqlRaw("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
-        EnsureUserSecurityColumns(db);
-        EnsureOrderItemColumns(db);
-        EnsureOrderColumns(db);
-        EnsureProductColumns(db);
-        EnsureStoreProfileColumns(db);
-        EnsureOrderMessagesTable(db);
+        EnsureLegacySqliteSchemaAligned(db);
+        db.Database.Migrate();
+        Console.WriteLine($"[DB] Database schema migrated successfully on provider: {db.Database.ProviderName}");
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"[DB Note] Startup lock: {ex.Message}");
+        Console.ForegroundColor = ConsoleColor.Red;
+        Console.WriteLine($"[DB Critical Error] Database migration failed on provider '{db.Database.ProviderName}': {ex.Message}");
+        Console.ResetColor();
+        throw; // Do not catch and call EnsureCreated(). Fail loudly so schema issues are visible.
+    }
+
+    if (db.Database.IsSqlite() && !app.Environment.IsDevelopment())
+    {
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine("[DB Warning] Running with local SQLite in non-development environment.");
+        Console.WriteLine("[DB Warning] Cloud Run instances have ephemeral filesystems and do not share disk across instances.");
+        Console.WriteLine("[DB Warning] Set DATABASE_URL or POSTGRES_CONNECTION_STRING to connect to Cloud SQL / PostgreSQL for durable, multi-instance data persistence.");
+        Console.ResetColor();
     }
 
     var allowDemoSeeding = app.Environment.IsDevelopment() || 
@@ -153,168 +158,125 @@ try
         SeedDemoAccounts(app.Services);
     }
 }
-catch (Exception ex)
-{
-    Console.WriteLine($"[DB Note] Startup database init: {ex.Message}");
-}
 
 app.MapControllers();
 app.MapHub<LocalShop.Api.Hubs.OrderHub>("/hubs/orders");
 app.Run();
 
-static void EnsureUserSecurityColumns(StoreDbContext db)
+static (string provider, string connectionString) GetDatabaseConfiguration(IConfiguration config)
 {
-    var connection = db.Database.GetDbConnection();
-    if (connection.State != System.Data.ConnectionState.Open)
+    var dbUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+    if (!string.IsNullOrWhiteSpace(dbUrl))
     {
-        connection.Open();
+        return ("PostgreSQL", ConvertPostgresUriToConnectionString(dbUrl));
     }
 
-    using var command = connection.CreateCommand();
-    command.CommandText = "PRAGMA table_info('Users');";
-
-    var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-    using var reader = command.ExecuteReader();
-    while (reader.Read())
+    var pgConn = Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING");
+    if (!string.IsNullOrWhiteSpace(pgConn))
     {
-        var columnName = reader.GetString(1);
-        columns.Add(columnName);
+        return ("PostgreSQL", pgConn);
     }
 
-    if (!columns.Contains("FailedLoginAttempts"))
+    var defaultConn = config.GetConnectionString("DefaultConnection");
+    if (!string.IsNullOrWhiteSpace(defaultConn) && 
+        (defaultConn.Contains("Host=", StringComparison.OrdinalIgnoreCase) || 
+         defaultConn.Contains("Server=", StringComparison.OrdinalIgnoreCase) ||
+         defaultConn.StartsWith("postgres", StringComparison.OrdinalIgnoreCase)))
     {
-        db.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ADD COLUMN \"FailedLoginAttempts\" INTEGER NOT NULL DEFAULT 0;");
+        return ("PostgreSQL", defaultConn.StartsWith("postgres", StringComparison.OrdinalIgnoreCase) 
+            ? ConvertPostgresUriToConnectionString(defaultConn) 
+            : defaultConn);
     }
 
-    if (!columns.Contains("LockoutUntilUtc"))
+    var customSqlitePath = Environment.GetEnvironmentVariable("DATABASE_PATH") ?? Environment.GetEnvironmentVariable("SQLITE_PATH");
+    if (!string.IsNullOrWhiteSpace(customSqlitePath))
     {
-        db.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ADD COLUMN \"LockoutUntilUtc\" TEXT NULL;");
+        return ("Sqlite", $"Data Source={customSqlitePath};Default Timeout=30;");
     }
+
+    var sqliteConn = defaultConn;
+    if (string.IsNullOrWhiteSpace(sqliteConn))
+    {
+        sqliteConn = "Data Source=LocalStore.db;Default Timeout=30;";
+    }
+
+    return ("Sqlite", sqliteConn);
 }
 
-static void EnsureOrderItemColumns(StoreDbContext db)
+static string ConvertPostgresUriToConnectionString(string uriString)
 {
-    var connection = db.Database.GetDbConnection();
-    if (connection.State != System.Data.ConnectionState.Open)
+    if (uriString.StartsWith("Host=", StringComparison.OrdinalIgnoreCase) || 
+        uriString.StartsWith("Server=", StringComparison.OrdinalIgnoreCase))
     {
-        connection.Open();
-    }
-
-    using var command = connection.CreateCommand();
-    command.CommandText = "PRAGMA table_info('OrderItems');";
-
-    var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-    using var reader = command.ExecuteReader();
-    while (reader.Read())
-    {
-        var columnName = reader.GetString(1);
-        columns.Add(columnName);
-    }
-
-    if (!columns.Contains("IsAvailable"))
-    {
-        db.Database.ExecuteSqlRaw("ALTER TABLE \"OrderItems\" ADD COLUMN \"IsAvailable\" INTEGER NOT NULL DEFAULT 1;");
-    }
-}
-
-static void EnsureOrderColumns(StoreDbContext db)
-{
-    var connection = db.Database.GetDbConnection();
-    if (connection.State != System.Data.ConnectionState.Open)
-    {
-        connection.Open();
-    }
-
-    using var command = connection.CreateCommand();
-    command.CommandText = "PRAGMA table_info('Orders');";
-
-    var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-    using var reader = command.ExecuteReader();
-    while (reader.Read())
-    {
-        var columnName = reader.GetString(1);
-        columns.Add(columnName);
-    }
-
-    if (!columns.Contains("IsDeletedByCustomer"))
-    {
-        db.Database.ExecuteSqlRaw("ALTER TABLE \"Orders\" ADD COLUMN \"IsDeletedByCustomer\" INTEGER NOT NULL DEFAULT 0;");
-    }
-
-    if (!columns.Contains("IsDeletedByMerchant"))
-    {
-        db.Database.ExecuteSqlRaw("ALTER TABLE \"Orders\" ADD COLUMN \"IsDeletedByMerchant\" INTEGER NOT NULL DEFAULT 0;");
-    }
-
-    if (!columns.Contains("StockRestored"))
-    {
-        db.Database.ExecuteSqlRaw("ALTER TABLE \"Orders\" ADD COLUMN \"StockRestored\" INTEGER NOT NULL DEFAULT 0;");
-    }
-}
-
-static void EnsureProductColumns(StoreDbContext db)
-{
-    var connection = db.Database.GetDbConnection();
-    if (connection.State != System.Data.ConnectionState.Open)
-    {
-        connection.Open();
-    }
-
-    using var command = connection.CreateCommand();
-    command.CommandText = "PRAGMA table_info('Products');";
-
-    var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-    using var reader = command.ExecuteReader();
-    while (reader.Read())
-    {
-        var columnName = reader.GetString(1);
-        columns.Add(columnName);
-    }
-
-    if (!columns.Contains("ShopName"))
-    {
-        db.Database.ExecuteSqlRaw("ALTER TABLE \"Products\" ADD COLUMN \"ShopName\" TEXT NOT NULL DEFAULT 'Tarama Stores';");
-    }
-
-    if (!columns.Contains("IsAvailable"))
-    {
-        db.Database.ExecuteSqlRaw("ALTER TABLE \"Products\" ADD COLUMN \"IsAvailable\" INTEGER NOT NULL DEFAULT 1;");
-    }
-}
-
-static void EnsureStoreProfileColumns(StoreDbContext db)
-{
-    var connection = db.Database.GetDbConnection();
-    if (connection.State != System.Data.ConnectionState.Open)
-    {
-        connection.Open();
-    }
-
-    using var command = connection.CreateCommand();
-    command.CommandText = "PRAGMA table_info('StoreProfiles');";
-
-    var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-    using var reader = command.ExecuteReader();
-    while (reader.Read())
-    {
-        var columnName = reader.GetString(1);
-        columns.Add(columnName);
-    }
-
-    if (!columns.Contains("Phone"))
-    {
-        db.Database.ExecuteSqlRaw("ALTER TABLE \"StoreProfiles\" ADD COLUMN \"Phone\" TEXT NULL;");
-    }
-
-    if (!columns.Contains("OwnerName"))
-    {
-        db.Database.ExecuteSqlRaw("ALTER TABLE \"StoreProfiles\" ADD COLUMN \"OwnerName\" TEXT NULL;");
+        return uriString;
     }
 
     try
     {
-        db.Database.ExecuteSqlRaw("UPDATE \"StoreProfiles\" SET \"Phone\" = '9876500000' WHERE \"Phone\" IS NULL;");
-        db.Database.ExecuteSqlRaw("UPDATE \"StoreProfiles\" SET \"OwnerName\" = \"ShopName\" WHERE \"OwnerName\" IS NULL;");
+        var uri = new Uri(uriString);
+        var userInfo = uri.UserInfo.Split(':');
+        var username = userInfo.Length > 0 ? Uri.UnescapeDataString(userInfo[0]) : "";
+        var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
+        var database = uri.AbsolutePath.TrimStart('/');
+        var port = uri.Port > 0 ? uri.Port : 5432;
+
+        return $"Host={uri.Host};Port={port};Database={database};Username={username};Password={password};SSL Mode=Prefer;Trust Server Certificate=true;";
+    }
+    catch
+    {
+        return uriString;
+    }
+}
+
+static void EnsureLegacySqliteSchemaAligned(StoreDbContext db)
+{
+    if (!db.Database.IsSqlite()) return;
+
+    var connection = db.Database.GetDbConnection();
+    if (connection.State != System.Data.ConnectionState.Open)
+    {
+        connection.Open();
+    }
+
+    try
+    {
+        using var pragmaCmd = connection.CreateCommand();
+        pragmaCmd.CommandText = "PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;";
+        pragmaCmd.ExecuteNonQuery();
+    }
+    catch { }
+
+    try
+    {
+        using var checkTableCmd = connection.CreateCommand();
+        checkTableCmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='Users';";
+        var usersTableExists = Convert.ToInt64(checkTableCmd.ExecuteScalar() ?? 0) > 0;
+
+        if (usersTableExists)
+        {
+            using var createHistCmd = connection.CreateCommand();
+            createHistCmd.CommandText = @"
+                CREATE TABLE IF NOT EXISTS ""__EFMigrationsHistory"" (
+                    ""MigrationId"" TEXT NOT NULL CONSTRAINT ""PK___EFMigrationsHistory"" PRIMARY KEY,
+                    ""ProductVersion"" TEXT NOT NULL
+                );
+            ";
+            createHistCmd.ExecuteNonQuery();
+
+            using var checkColCmd = connection.CreateCommand();
+            checkColCmd.CommandText = "SELECT COUNT(*) FROM pragma_table_info('Users') WHERE name = 'FailedLoginAttempts';";
+            var hasColumn = Convert.ToInt64(checkColCmd.ExecuteScalar() ?? 0) > 0;
+
+            if (hasColumn)
+            {
+                using var markCmd = connection.CreateCommand();
+                markCmd.CommandText = @"
+                    INSERT OR IGNORE INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"")
+                    VALUES ('20260929171523_SyncCurrentSchema', '10.0.9');
+                ";
+                markCmd.ExecuteNonQuery();
+            }
+        }
     }
     catch { }
 }
@@ -360,22 +322,4 @@ static void EnsureDemoUser(StoreDbContext db, string role, string phone, string 
     }
 
     // Do NOT overwrite existing user's password, status, or details on restart
-}
-
-static void EnsureOrderMessagesTable(StoreDbContext db)
-{
-    try
-    {
-        db.Database.ExecuteSqlRaw(@"
-            CREATE TABLE IF NOT EXISTS ""OrderMessages"" (
-                ""Id"" TEXT NOT NULL CONSTRAINT ""PK_OrderMessages"" PRIMARY KEY,
-                ""OrderId"" TEXT NOT NULL,
-                ""SenderRole"" TEXT NOT NULL DEFAULT 'Customer',
-                ""SenderName"" TEXT NOT NULL DEFAULT '',
-                ""MessageText"" TEXT NOT NULL DEFAULT '',
-                ""CreatedAt"" TEXT NOT NULL
-            );
-        ");
-    }
-    catch { }
 }
