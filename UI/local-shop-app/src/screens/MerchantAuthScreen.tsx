@@ -12,6 +12,7 @@ export default function MerchantAuthScreen({ onAuthSuccess }: MerchantAuthProps)
   const [shopName, setShopName] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [category, setCategory] = useState('');
 
   // Secure Password Reset with OTP
@@ -25,13 +26,18 @@ export default function MerchantAuthScreen({ onAuthSuccess }: MerchantAuthProps)
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
   const handleAuth = async () => {
-    if (!phone.trim() || !password.trim() || (!isLogin && (!shopName.trim() || !category.trim()))) {
+    if (!phone.trim() || !password.trim() || (!isLogin && (!shopName.trim() || !category.trim() || !confirmPassword.trim()))) {
       Alert.alert('Missing Info', 'Please fill out all required fields.');
       return;
     }
 
     if (password.length < 8) {
       Alert.alert('Weak Password', 'Password must be at least 8 characters long.');
+      return;
+    }
+
+    if (!isLogin && password !== confirmPassword) {
+      Alert.alert('Password Mismatch', 'The passwords do not match. Please re-enter and verify your password.');
       return;
     }
 
@@ -258,8 +264,30 @@ export default function MerchantAuthScreen({ onAuthSuccess }: MerchantAuthProps)
           <Text style={styles.label}>Password</Text>
           <View style={styles.inputBox}>
             <Lock size={18} color="#8E8E93" style={styles.icon} />
-            <TextInput style={styles.input} placeholder="Password (min 8 chars)" secureTextEntry value={password} onChangeText={setPassword} />
+            <TextInput
+              style={styles.input}
+              placeholder={isLogin ? "Password (min 8 chars)" : "Create password (min 8 chars)"}
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+            />
           </View>
+
+          {!isLogin && (
+            <>
+              <Text style={styles.label}>Re-verify Password</Text>
+              <View style={styles.inputBox}>
+                <Lock size={18} color="#8E8E93" style={styles.icon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Re-enter password to verify"
+                  secureTextEntry
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                />
+              </View>
+            </>
+          )}
 
           {isLogin && (
             <TouchableOpacity onPress={() => setShowForgotPassword(!showForgotPassword)}>
@@ -373,7 +401,10 @@ export default function MerchantAuthScreen({ onAuthSuccess }: MerchantAuthProps)
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.switch} onPress={() => setIsLogin(!isLogin)}>
+        <TouchableOpacity style={styles.switch} onPress={() => {
+          setIsLogin(!isLogin);
+          setConfirmPassword('');
+        }}>
           <Text style={styles.switchText}>
             {isLogin ? "New Merchant? " : "Already registered? "}
             <Text style={styles.link}>{isLogin ? 'Create a store account' : 'Sign In'}</Text>
