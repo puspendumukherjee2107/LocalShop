@@ -97,6 +97,7 @@ try
         EnsureOrderColumns(db);
         EnsureProductColumns(db);
         EnsureStoreProfileColumns(db);
+        EnsureOrderMessagesTable(db);
     }
     catch (Exception ex)
     {
@@ -298,4 +299,22 @@ static void EnsureDemoUser(StoreDbContext db, string role, string phone, string 
     user.Address = address;
     user.Status = "Active";
     user.Role = role;
+}
+
+static void EnsureOrderMessagesTable(StoreDbContext db)
+{
+    try
+    {
+        db.Database.ExecuteSqlRaw(@"
+            CREATE TABLE IF NOT EXISTS ""OrderMessages"" (
+                ""Id"" TEXT NOT NULL CONSTRAINT ""PK_OrderMessages"" PRIMARY KEY,
+                ""OrderId"" TEXT NOT NULL,
+                ""SenderRole"" TEXT NOT NULL DEFAULT 'Customer',
+                ""SenderName"" TEXT NOT NULL DEFAULT '',
+                ""MessageText"" TEXT NOT NULL DEFAULT '',
+                ""CreatedAt"" TEXT NOT NULL
+            );
+        ");
+    }
+    catch { }
 }

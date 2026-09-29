@@ -27,10 +27,12 @@ import {
   IndianRupee,
   XCircle,
   AlertTriangle,
-  Trash2
+  Trash2,
+  MessageSquare
 } from 'lucide-react-native';
 import { BASE_URL } from '../services/apiConfig';
 import { signalRService } from '../services/signalRService';
+import OrderChatModal from '../components/OrderChatModal';
 
 interface StoreItem {
   id: string;
@@ -118,6 +120,15 @@ export default function SimpleCustomerScreen({ currentUser }: SimpleCustomerScre
       if (address) setDeliveryAddress(address);
     }
   }, [currentUser]);
+
+  // In-App Customer-Merchant Chat State
+  const [chatOrderId, setChatOrderId] = useState<string | null>(null);
+  const [chatShopName, setChatShopName] = useState<string>('');
+
+  const handleOpenChat = (orderId: string, shop: string) => {
+    setChatOrderId(orderId);
+    setChatShopName(shop || 'Store');
+  };
 
   // My Orders State
   const [myOrders, setMyOrders] = useState<OrderItem[]>([]);
@@ -744,7 +755,16 @@ export default function SimpleCustomerScreen({ currentUser }: SimpleCustomerScre
                     <View style={styles.orderTopBar}>
                       <View style={{ flex: 1, marginRight: 8 }}>
                         <Text style={styles.orderShopName}>{item.shopName}</Text>
-                        <Text style={styles.orderId}>Order #{item.id}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                          <Text style={styles.orderId}>Order #{item.id}</Text>
+                          <TouchableOpacity
+                            style={styles.orderChatChip}
+                            onPress={() => handleOpenChat(item.id, item.shopName)}
+                          >
+                            <MessageSquare size={12} color="#007AFF" />
+                            <Text style={styles.orderChatChipText}>Chat</Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                         <View style={[
@@ -1055,12 +1075,34 @@ export default function SimpleCustomerScreen({ currentUser }: SimpleCustomerScre
                         </View>
                       </View>
                     )}
+
+                    {/* Live Chat with Merchant Button */}
+                    <TouchableOpacity
+                      style={styles.orderChatBottomBtn}
+                      onPress={() => handleOpenChat(item.id, item.shopName)}
+                    >
+                      <MessageSquare size={14} color="#007AFF" />
+                      <Text style={styles.orderChatBottomBtnText}>💬 Chat with {item.shopName}</Text>
+                    </TouchableOpacity>
                   </View>
                 );
               }}
             />
           )}
         </View>
+      )}
+
+      {/* Real-Time Customer & Merchant Chat Modal */}
+      {chatOrderId && (
+        <OrderChatModal
+          visible={chatOrderId !== null}
+          onClose={() => setChatOrderId(null)}
+          orderId={chatOrderId}
+          currentRole="Customer"
+          currentUserName={customerName || 'Customer'}
+          otherPartyName={chatShopName}
+          otherPartySubtitle="Store Merchant"
+        />
       )}
     </View>
   );
@@ -1774,5 +1816,38 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#111827',
+  },
+  orderChatChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12
+  },
+  orderChatChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#007AFF'
+  },
+  orderChatBottomBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#EBF5FF',
+    borderWidth: 1,
+    borderColor: '#93C5FD',
+    borderRadius: 8,
+    paddingVertical: 8,
+    marginTop: 10
+  },
+  orderChatBottomBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#007AFF'
   }
 });

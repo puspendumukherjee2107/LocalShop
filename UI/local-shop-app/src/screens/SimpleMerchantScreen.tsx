@@ -29,10 +29,12 @@ import {
   Trash2,
   AlertTriangle,
   Percent,
-  Search
+  Search,
+  MessageSquare
 } from 'lucide-react-native';
 import { BASE_URL } from '../services/apiConfig';
 import { signalRService } from '../services/signalRService';
+import OrderChatModal from '../components/OrderChatModal';
 
 interface CatalogProduct {
   id: string;
@@ -109,6 +111,17 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
   const [newProductCategory, setNewProductCategory] = useState('Groceries');
   const [newProductInStock, setNewProductInStock] = useState(true);
   const [isSavingProduct, setIsSavingProduct] = useState(false);
+
+  // In-App Order Chat State
+  const [chatOrderId, setChatOrderId] = useState<string | null>(null);
+  const [chatCustomerName, setChatCustomerName] = useState<string>('');
+  const [chatCustomerPhone, setChatCustomerPhone] = useState<string>('');
+
+  const handleOpenChat = (order: OrderItem) => {
+    setChatOrderId(order.id);
+    setChatCustomerName(order.customerName || 'Customer');
+    setChatCustomerPhone(order.customerPhone || '');
+  };
 
   const fetchCatalog = useCallback(async (showLoading = true) => {
     if (showLoading) setIsLoadingCatalog(true);
@@ -845,7 +858,16 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
                   <View style={{ flex: 1, marginRight: 8 }}>
                     <Text style={styles.customerName}>{item.customerName || 'Customer'}</Text>
                     <Text style={styles.customerPhone}>📞 {item.customerPhone || 'No Phone'}</Text>
-                    <Text style={styles.orderIdText}>Order #{item.id}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                      <Text style={styles.orderIdText}>Order #{item.id}</Text>
+                      <TouchableOpacity
+                        style={styles.orderChatChip}
+                        onPress={() => handleOpenChat(item)}
+                      >
+                        <MessageSquare size={12} color="#007AFF" />
+                        <Text style={styles.orderChatChipText}>Chat</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <View style={[
@@ -1298,6 +1320,15 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
                     </View>
                   </View>
                 )}
+
+                {/* Direct Live Chat Button with Customer */}
+                <TouchableOpacity
+                  style={styles.orderChatBottomBtn}
+                  onPress={() => handleOpenChat(item)}
+                >
+                  <MessageSquare size={14} color="#007AFF" />
+                  <Text style={styles.orderChatBottomBtnText}>💬 Live Chat with Customer</Text>
+                </TouchableOpacity>
               </View>
             );
           }}
@@ -1543,6 +1574,19 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores' }: Sim
           </View>
         </View>
       </Modal>
+
+      {/* Real-Time Customer & Merchant Chat Modal */}
+      {chatOrderId && (
+        <OrderChatModal
+          visible={chatOrderId !== null}
+          onClose={() => setChatOrderId(null)}
+          orderId={chatOrderId}
+          currentRole="Merchant"
+          currentUserName={shopName}
+          otherPartyName={chatCustomerName}
+          otherPartySubtitle={chatCustomerPhone ? `Customer • 📞 ${chatCustomerPhone}` : 'Customer'}
+        />
+      )}
     </View>
   );
 }
@@ -2693,5 +2737,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#FFF'
+  },
+  orderChatChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12
+  },
+  orderChatChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#007AFF'
+  },
+  orderChatBottomBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#EBF5FF',
+    borderWidth: 1,
+    borderColor: '#93C5FD',
+    borderRadius: 8,
+    paddingVertical: 8,
+    marginTop: 10
+  },
+  orderChatBottomBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#007AFF'
   }
 });
