@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "local-shop-app",
+    "name": "LocalShop",
     "slug": "local-shop-app",
-    "version": "1.0.16",
+    "version": "1.0.17",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "localshopapp",
@@ -12,7 +12,7 @@
     },
     "android": {
       "package": "com.localstore.app",
-      "versionCode": 17,
+      "versionCode": 18,
       "permissions": [
         "INTERNET"
       ],
