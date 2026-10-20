@@ -1,4 +1,4 @@
-import { ArrowRight, Briefcase, Lock, Phone, ShieldCheck, Store } from 'lucide-react-native';
+import { ArrowRight, Briefcase, Eye, EyeOff, Lock, Phone, ShieldCheck, Store } , Eye, EyeOff } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { BASE_URL, setAuthToken } from '../services/apiConfig';
@@ -12,6 +12,10 @@ export default function MerchantAuthScreen({ onAuthSuccess }: MerchantAuthProps)
   const [shopName, setShopName] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showResetNewPassword, setShowResetNewPassword] = useState(false);
+  const [showResetConfirmPassword, setShowResetConfirmPassword] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState('');
   const [category, setCategory] = useState('');
 
@@ -267,10 +271,13 @@ export default function MerchantAuthScreen({ onAuthSuccess }: MerchantAuthProps)
             <TextInput
               style={styles.input}
               placeholder={isLogin ? "Password (min 8 chars)" : "Create password (min 8 chars)"}
-              secureTextEntry
+              secureTextEntry={!showPassword}
               value={password}
               onChangeText={setPassword}
             />
+            <TouchableOpacity onPress={() => setShowPassword(p => !p)} style={styles.eyeBtn} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              {showPassword ? <EyeOff size={18} color="#64748B" /> : <Eye size={18} color="#64748B" />}
+            </TouchableOpacity>
           </View>
 
           {!isLogin && (
@@ -281,10 +288,13 @@ export default function MerchantAuthScreen({ onAuthSuccess }: MerchantAuthProps)
                 <TextInput
                   style={styles.input}
                   placeholder="Re-enter password to verify"
-                  secureTextEntry
+                  secureTextEntry={!showConfirmPassword}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                 />
+                <TouchableOpacity onPress={() => setShowConfirmPassword(p => !p)} style={styles.eyeBtn} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  {showConfirmPassword ? <EyeOff size={18} color="#64748B" /> : <Eye size={18} color="#64748B" />}
+                </TouchableOpacity>
               </View>
             </>
           )}
@@ -351,10 +361,13 @@ export default function MerchantAuthScreen({ onAuthSuccess }: MerchantAuthProps)
                     <TextInput
                       style={styles.input}
                       placeholder="New password"
-                      secureTextEntry
+                      secureTextEntry={!showResetNewPassword}
                       value={newPassword}
                       onChangeText={setNewPassword}
                     />
+                    <TouchableOpacity onPress={() => setShowResetNewPassword(p => !p)} style={styles.eyeBtn} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                      {showResetNewPassword ? <EyeOff size={18} color="#64748B" /> : <Eye size={18} color="#64748B" />}
+                    </TouchableOpacity>
                   </View>
 
                   <Text style={styles.fieldLabel}>Confirm New Password</Text>
@@ -363,10 +376,13 @@ export default function MerchantAuthScreen({ onAuthSuccess }: MerchantAuthProps)
                     <TextInput
                       style={styles.input}
                       placeholder="Confirm new password"
-                      secureTextEntry
+                      secureTextEntry={!showResetConfirmPassword}
                       value={confirmNewPassword}
                       onChangeText={setConfirmNewPassword}
                     />
+                    <TouchableOpacity onPress={() => setShowResetConfirmPassword(p => !p)} style={styles.eyeBtn} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                      {showResetConfirmPassword ? <EyeOff size={18} color="#64748B" /> : <Eye size={18} color="#64748B" />}
+                    </TouchableOpacity>
                   </View>
 
                   <TouchableOpacity
@@ -468,6 +484,11 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: 12, fontWeight: '700', color: '#475569', marginBottom: 4, marginTop: 8 },
   inputBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 10, paddingHorizontal: 12, height: 46, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 6 },
   icon: { marginRight: 8 },
+  eyeBtn: {
+    padding: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   input: { flex: 1, fontSize: 15, color: '#0F172A' },
   forgotPasswordText: { color: '#007AFF', fontSize: 13, fontWeight: '600', marginTop: 10, textAlign: 'center' },
   resetCard: { backgroundColor: '#F8FAFC', borderRadius: 12, padding: 14, marginTop: 10, borderWidth: 1, borderColor: '#CBD5E1' },

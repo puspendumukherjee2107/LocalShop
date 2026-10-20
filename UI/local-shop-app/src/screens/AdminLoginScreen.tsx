@@ -1,4 +1,4 @@
-import { KeyRound, ShieldAlert } from 'lucide-react-native';
+import { Eye, EyeOff, KeyRound, ShieldAlert } , Eye, EyeOff } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { BASE_URL, setAuthToken } from '../services/apiConfig';
@@ -6,6 +6,9 @@ import { BASE_URL, setAuthToken } from '../services/apiConfig';
 export default function AdminLoginScreen({ onAdminAuth }: { onAdminAuth: () => void }) {
   const [adminKey, setAdminKey] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showResetNewPassword, setShowResetNewPassword] = useState(false);
+  const [showResetConfirmPassword, setShowResetConfirmPassword] = useState(false);
   const [showReset, setShowReset] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
@@ -102,7 +105,12 @@ export default function AdminLoginScreen({ onAdminAuth }: { onAdminAuth: () => v
 
       <View style={styles.card}>
         <TextInput style={styles.input} placeholder="Master Admin Key" value={adminKey} onChangeText={setAdminKey} autoCapitalize="none" />
-        <TextInput style={styles.input} placeholder="Secret Password" secureTextEntry value={password} onChangeText={setPassword} />
+        <View style={styles.passwordWrapper}>
+          <TextInput style={[styles.input, { flex: 1, marginBottom: 0, borderWidth: 0 }]} placeholder="Secret Password" secureTextEntry={!showPassword} value={password} onChangeText={setPassword} />
+          <TouchableOpacity onPress={() => setShowPassword(p => !p)} style={styles.eyeBtn} activeOpacity={0.7}>
+            {showPassword ? <EyeOff size={18} color="#64748B" /> : <Eye size={18} color="#64748B" />}
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity onPress={() => setShowReset(!showReset)}>
           <Text style={styles.forgotPasswordText}>Forgot password?</Text>
@@ -111,8 +119,18 @@ export default function AdminLoginScreen({ onAdminAuth }: { onAdminAuth: () => v
         {showReset && (
           <View style={styles.resetCard}>
             <Text style={styles.resetTitle}>Reset admin password</Text>
-            <TextInput style={styles.input} placeholder="New password" secureTextEntry value={newPassword} onChangeText={setNewPassword} />
-            <TextInput style={styles.input} placeholder="Confirm new password" secureTextEntry value={confirmNewPassword} onChangeText={setConfirmNewPassword} />
+            <View style={styles.passwordWrapper}>
+              <TextInput style={[styles.input, { flex: 1, marginBottom: 0, borderWidth: 0 }]} placeholder="New password" secureTextEntry={!showResetNewPassword} value={newPassword} onChangeText={setNewPassword} />
+              <TouchableOpacity onPress={() => setShowResetNewPassword(p => !p)} style={styles.eyeBtn} activeOpacity={0.7}>
+                {showResetNewPassword ? <EyeOff size={18} color="#64748B" /> : <Eye size={18} color="#64748B" />}
+              </TouchableOpacity>
+            </View>
+            <View style={styles.passwordWrapper}>
+              <TextInput style={[styles.input, { flex: 1, marginBottom: 0, borderWidth: 0 }]} placeholder="Confirm new password" secureTextEntry={!showResetConfirmPassword} value={confirmNewPassword} onChangeText={setConfirmNewPassword} />
+              <TouchableOpacity onPress={() => setShowResetConfirmPassword(p => !p)} style={styles.eyeBtn} activeOpacity={0.7}>
+                {showResetConfirmPassword ? <EyeOff size={18} color="#64748B" /> : <Eye size={18} color="#64748B" />}
+              </TouchableOpacity>
+            </View>
             <TouchableOpacity style={styles.resetButton} onPress={handleForgotPassword}>
               <Text style={styles.resetButtonText}>Update Password</Text>
             </TouchableOpacity>
@@ -196,6 +214,21 @@ const styles = StyleSheet.create({
     maxWidth: '72%',
   },
   card: { backgroundColor: '#FFF', borderRadius: 20, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4, borderWidth: 1, borderColor: 'rgba(15, 23, 42, 0.04)' },
+  passwordWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingRight: 8,
+    marginBottom: 12,
+  },
+  eyeBtn: {
+    padding: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   input: { backgroundColor: '#F2F4F8', borderRadius: 12, padding: 12, marginBottom: 12, color: '#1C1C1E', fontSize: 15, borderWidth: 1, borderColor: '#E8ECF3' },
   forgotPasswordText: { color: '#FF9500', fontSize: 13, fontWeight: '600', textAlign: 'center', marginBottom: 8 },
   resetCard: { backgroundColor: '#F7F7F8', borderRadius: 12, padding: 12, marginBottom: 12 },

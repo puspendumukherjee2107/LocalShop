@@ -1,4 +1,4 @@
-import { ArrowRight, Lock, MapPin, Phone, User } from 'lucide-react-native';
+import { ArrowRight, Eye, EyeOff, Lock, MapPin, Phone, User } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
     Alert,
@@ -22,7 +22,9 @@ export default function RegisterScreen({ onRegisterSuccess, onSwitchToLogin }: R
   const [name, setName] = useState('Prayaan Das');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [address, setAddress] = useState('');
 
   const handleRegister = async () => {
@@ -121,10 +123,13 @@ export default function RegisterScreen({ onRegisterSuccess, onSwitchToLogin }: R
             <TextInput 
               style={styles.input}
               placeholder="Create password (min 4 characters)"
-              secureTextEntry={true}
+              secureTextEntry={!showPassword}
               value={password}
               onChangeText={setPassword}
             />
+            <TouchableOpacity onPress={() => setShowPassword(p => !p)} style={styles.eyeBtn} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              {showPassword ? <EyeOff size={18} color="#64748B" /> : <Eye size={18} color="#64748B" />}
+            </TouchableOpacity>
           </View>
 
           {/* Confirm Password Field */}
@@ -134,10 +139,13 @@ export default function RegisterScreen({ onRegisterSuccess, onSwitchToLogin }: R
             <TextInput 
               style={styles.input}
               placeholder="Re-enter password"
-              secureTextEntry={true}
+              secureTextEntry={!showConfirmPassword}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
             />
+            <TouchableOpacity onPress={() => setShowConfirmPassword(p => !p)} style={styles.eyeBtn} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              {showConfirmPassword ? <EyeOff size={18} color="#64748B" /> : <Eye size={18} color="#64748B" />}
+            </TouchableOpacity>
           </View>
 
           {/* Delivery Address Field */}
@@ -234,6 +242,11 @@ const styles = StyleSheet.create({
   },
   inputIcon: {
     marginRight: 10,
+  },
+  eyeBtn: {
+    padding: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   input: {
     flex: 1,

@@ -1,4 +1,4 @@
-import { Bike, Lock, User } from 'lucide-react-native';
+import { Bike, Eye, EyeOff, Lock, User } , Eye, EyeOff } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
   Alert,
@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { setAuthToken } from '../services/apiConfig';
+import { BASE_URL, setAuthToken } from '../services/apiConfig';
 
 interface DeliveryLoginProps {
   onAuthSuccess: (driverName: string) => void;
@@ -19,6 +19,9 @@ interface DeliveryLoginProps {
 export default function DeliveryLoginScreen({ onAuthSuccess }: DeliveryLoginProps) {
   const [driverName, setDriverName] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showResetNewPassword, setShowResetNewPassword] = useState(false);
+  const [showResetConfirmPassword, setShowResetConfirmPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
@@ -30,7 +33,7 @@ export default function DeliveryLoginScreen({ onAuthSuccess }: DeliveryLoginProp
     }
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
+      const response = await fetch(`${BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: driverName.trim(), password: password.trim(), role: 'Delivery' }),
@@ -126,10 +129,13 @@ export default function DeliveryLoginScreen({ onAuthSuccess }: DeliveryLoginProp
           <TextInput
             style={styles.input}
             placeholder="Enter delivery password"
-            secureTextEntry
+            secureTextEntry={!showPassword}
             value={password}
             onChangeText={setPassword}
           />
+          <TouchableOpacity onPress={() => setShowPassword(p => !p)} style={styles.eyeBtn} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            {showPassword ? <EyeOff size={18} color="#64748B" /> : <Eye size={18} color="#64748B" />}
+          </TouchableOpacity>
         </View>
 
         <TouchableOpacity onPress={() => setShowForgotPassword(!showForgotPassword)}>
@@ -139,8 +145,18 @@ export default function DeliveryLoginScreen({ onAuthSuccess }: DeliveryLoginProp
         {showForgotPassword && (
           <View style={styles.resetCard}>
             <Text style={styles.resetTitle}>Reset delivery password</Text>
-            <TextInput style={styles.resetInput} placeholder="New password" secureTextEntry value={newPassword} onChangeText={setNewPassword} />
-            <TextInput style={styles.resetInput} placeholder="Confirm new password" secureTextEntry value={confirmNewPassword} onChangeText={setConfirmNewPassword} />
+            <View style={styles.passwordWrapper}>
+              <TextInput style={[styles.resetInput, { flex: 1, marginBottom: 0 }]} placeholder="New password" secureTextEntry={!showResetNewPassword} value={newPassword} onChangeText={setNewPassword} />
+              <TouchableOpacity onPress={() => setShowResetNewPassword(p => !p)} style={styles.eyeBtn} activeOpacity={0.7}>
+                {showResetNewPassword ? <EyeOff size={18} color="#64748B" /> : <Eye size={18} color="#64748B" />}
+              </TouchableOpacity>
+            </View>
+            <View style={styles.passwordWrapper}>
+              <TextInput style={[styles.resetInput, { flex: 1, marginBottom: 0 }]} placeholder="Confirm new password" secureTextEntry={!showResetConfirmPassword} value={confirmNewPassword} onChangeText={setConfirmNewPassword} />
+              <TouchableOpacity onPress={() => setShowResetConfirmPassword(p => !p)} style={styles.eyeBtn} activeOpacity={0.7}>
+                {showResetConfirmPassword ? <EyeOff size={18} color="#64748B" /> : <Eye size={18} color="#64748B" />}
+              </TouchableOpacity>
+            </View>
             <TouchableOpacity style={styles.resetButton} onPress={handleForgotPassword}>
               <Text style={styles.resetButtonText}>Update Password</Text>
             </TouchableOpacity>
@@ -206,6 +222,21 @@ const styles = StyleSheet.create({
   },
   icon: {
     marginRight: 8,
+  },
+  passwordWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingRight: 8,
+    marginBottom: 10,
+  },
+  eyeBtn: {
+    padding: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   input: {
     flex: 1,

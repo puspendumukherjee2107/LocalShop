@@ -1,4 +1,4 @@
-import { Lock, LogIn, Phone, ShoppingBag, ShieldCheck } from 'lucide-react-native';
+import { Eye, EyeOff, Lock, LogIn, Phone, ShoppingBag, ShieldCheck } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
   Alert,
@@ -21,6 +21,7 @@ interface LoginProps {
 export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }: LoginProps) {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
 
   // Secure Password Reset with OTP
@@ -31,7 +32,9 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }: Logi
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [newPassword, setNewPassword] = useState('');
+  const [showResetNewPassword, setShowResetNewPassword] = useState(false);
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showResetConfirmPassword, setShowResetConfirmPassword] = useState(false);
 
   const handleLogin = async () => {
     if (!phone.trim() || !password.trim()) {
@@ -218,10 +221,18 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }: Logi
             <TextInput
               style={styles.input}
               placeholder="Enter your security password"
-              secureTextEntry={true}
+              secureTextEntry={!showPassword}
               value={password}
               onChangeText={setPassword}
             />
+            <TouchableOpacity
+              onPress={() => setShowPassword(p => !p)}
+              style={styles.eyeBtn}
+              activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              {showPassword ? <EyeOff size={18} color="#64748B" /> : <Eye size={18} color="#64748B" />}
+            </TouchableOpacity>
           </View>
 
           {loginError ? (
@@ -316,10 +327,18 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }: Logi
                     <TextInput
                       style={styles.input}
                       placeholder="New password"
-                      secureTextEntry
+                      secureTextEntry={!showResetNewPassword}
                       value={newPassword}
                       onChangeText={setNewPassword}
                     />
+                    <TouchableOpacity
+                      onPress={() => setShowResetNewPassword(p => !p)}
+                      style={styles.eyeBtn}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      {showResetNewPassword ? <EyeOff size={18} color="#64748B" /> : <Eye size={18} color="#64748B" />}
+                    </TouchableOpacity>
                   </View>
 
                   <Text style={styles.fieldLabel}>Confirm New Password</Text>
@@ -328,10 +347,18 @@ export default function LoginScreen({ onLoginSuccess, onSwitchToRegister }: Logi
                     <TextInput
                       style={styles.input}
                       placeholder="Confirm new password"
-                      secureTextEntry
+                      secureTextEntry={!showResetConfirmPassword}
                       value={confirmNewPassword}
                       onChangeText={setConfirmNewPassword}
                     />
+                    <TouchableOpacity
+                      onPress={() => setShowResetConfirmPassword(p => !p)}
+                      style={styles.eyeBtn}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      {showResetConfirmPassword ? <EyeOff size={18} color="#64748B" /> : <Eye size={18} color="#64748B" />}
+                    </TouchableOpacity>
                   </View>
 
                   <TouchableOpacity
@@ -470,6 +497,11 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: '#0F172A',
+  },
+  eyeBtn: {
+    padding: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   quickFillBtn: {
     backgroundColor: '#EFF6FF',
