@@ -1,4 +1,4 @@
-import { ArrowRight, Briefcase, Eye, EyeOff, Lock, Phone, ShieldCheck, Store } , Eye, EyeOff } from 'lucide-react-native';
+import { ArrowRight, Briefcase, Eye, EyeOff, Lock, Phone, ShieldCheck, Store } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { BASE_URL, setAuthToken } from '../services/apiConfig';

@@ -1,4 +1,4 @@
-import { Bike, Eye, EyeOff, Lock, User } , Eye, EyeOff } from 'lucide-react-native';
+import { Bike, Eye, EyeOff, Lock, User } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
   Alert,

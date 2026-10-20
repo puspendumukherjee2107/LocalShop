@@ -1,4 +1,4 @@
-import { Eye, EyeOff, KeyRound, ShieldAlert } , Eye, EyeOff } from 'lucide-react-native';
+import { Eye, EyeOff, KeyRound, ShieldAlert } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { BASE_URL, setAuthToken } from '../services/apiConfig';
