@@ -37,7 +37,8 @@ public class OrderHub : Hub
             createdAt = DateTime.UtcNow
         };
 
-        // Send ONLY to the targeted order group
+        // Send to targeted order group and all connected clients
         await Clients.Group($"order_{orderId}").SendAsync("ReceiveOrderMessage", payload);
+        await Clients.All.SendAsync("ReceiveOrderMessage", payload);
     }
 }

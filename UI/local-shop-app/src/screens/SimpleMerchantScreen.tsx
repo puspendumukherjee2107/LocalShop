@@ -35,6 +35,7 @@ import {
 import { BASE_URL } from '../services/apiConfig';
 import { signalRService } from '../services/signalRService';
 import OrderChatModal from '../components/OrderChatModal';
+import ChatNotificationBanner from '../components/ChatNotificationBanner';
 
 interface CatalogProduct {
   id: string;
@@ -338,6 +339,27 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores', onLog
       ));
     });
 
+    const unsubMessage = signalRService.onOrderMessage((msg: any) => {
+      if (!msg || !msg.orderId) return;
+      if (msg.senderRole === 'Customer') {
+        setUnreadChatOrderIds(prev => (prev.includes(msg.orderId) ? prev : [...prev, msg.orderId]));
+        if (chatOrderId !== msg.orderId) {
+          const matched = orders.find(o => o.id === msg.orderId);
+          const cName = matched?.customerName || msg.senderName || 'Customer';
+          const cPhone = matched?.customerPhone || '';
+          setChatBanner({
+            visible: true,
+            senderName: cName,
+            senderRole: 'Customer',
+            messageText: msg.messageText || '',
+            orderId: msg.orderId,
+            customerName: cName,
+            customerPhone: cPhone,
+          });
+        }
+      }
+    });
+
     const unsubStore = signalRService.onStoreStatusUpdated((data) => {
       if (data.shopName.toLowerCase() === shopName.toLowerCase()) {
         setIsOpen(data.isOpen);
@@ -357,6 +379,7 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores', onLog
       unsubStatus();
       unsubQuote();
       unsubStore();
+      unsubMessage();
       clearInterval(interval);
     };
   }, [shopName, fetchOrders, fetchStoreProfile, fetchCatalog]);
@@ -892,11 +915,13 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores', onLog
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
                       <Text style={styles.orderIdText}>Order #{item.id}</Text>
                       <TouchableOpacity
-                        style={styles.orderChatChip}
+                        style={[styles.orderChatChip, unreadChatOrderIds.includes(item.id) && styles.orderChatChipUnread]}
                         onPress={() => handleOpenChat(item)}
                       >
-                        <MessageSquare size={12} color="#007AFF" />
-                        <Text style={styles.orderChatChipText}>Chat</Text>
+                        <MessageSquare size={12} color={unreadChatOrderIds.includes(item.id) ? "#FFFFFF" : "#007AFF"} />
+                        <Text style={[styles.orderChatChipText, unreadChatOrderIds.includes(item.id) && styles.orderChatChipTextUnread]}>
+                          {unreadChatOrderIds.includes(item.id) ? '🔴 New Msg' : 'Chat'}
+                        </Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -1359,11 +1384,13 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores', onLog
 
                 {/* Direct Live Chat Button with Customer */}
                 <TouchableOpacity
-                  style={styles.orderChatBottomBtn}
+                  style={[styles.orderChatBottomBtn, unreadChatOrderIds.includes(item.id) && styles.orderChatBottomBtnUnread]}
                   onPress={() => handleOpenChat(item)}
                 >
-                  <MessageSquare size={14} color="#007AFF" />
-                  <Text style={styles.orderChatBottomBtnText}>💬 Live Chat with Customer</Text>
+                  <MessageSquare size={14} color={unreadChatOrderIds.includes(item.id) ? "#DC2626" : "#007AFF"} />
+                  <Text style={[styles.orderChatBottomBtnText, unreadChatOrderIds.includes(item.id) && styles.orderChatBottomBtnTextUnread]}>
+                    {unreadChatOrderIds.includes(item.id) ? '🔴 New Message Waiting — Tap to Chat' : '💬 Live Chat with Customer'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             );
@@ -1613,6 +1640,26 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores', onLog
           </View>
         </View>
       </Modal>
+
+      {/* Floating Real-Time Chat Notification Banner */}
+      <ChatNotificationBanner
+        visible={chatBanner.visible}
+        senderName={chatBanner.senderName}
+        senderRole={chatBanner.senderRole}
+        messageText={chatBanner.messageText}
+        orderId={chatBanner.orderId}
+        onPress={() => {
+          const matched = orders.find(o => o.id === chatBanner.orderId);
+          if (matched) {
+            handleOpenChat(matched);
+          } else {
+            setChatOrderId(chatBanner.orderId);
+            setChatCustomerName(chatBanner.customerName);
+            setChatCustomerPhone(chatBanner.customerPhone);
+          }
+        }}
+        onDismiss={() => setChatBanner(prev => ({ ...prev, visible: false }))}
+      />
 
       {/* Real-Time Customer & Merchant Chat Modal */}
       {chatOrderId && (
@@ -2776,6 +2823,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#FFF'
+  },
+  orderChatChipUnread: {
+    backgroundColor: '#EF4444',
+    borderColor: '#DC2626',
+  },
+  orderChatChipTextUnread: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  orderChatBottomBtnUnread: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#EF4444',
+    borderWidth: 1.5,
+  },
+  orderChatBottomBtnTextUnread: {
+    color: '#DC2626',
+    fontWeight: '800',
   },
   orderChatChip: {
     flexDirection: 'row',

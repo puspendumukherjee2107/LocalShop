@@ -33,6 +33,7 @@ import {
 import { BASE_URL } from '../services/apiConfig';
 import { signalRService } from '../services/signalRService';
 import OrderChatModal from '../components/OrderChatModal';
+import ChatNotificationBanner from '../components/ChatNotificationBanner';
 
 interface StoreItem {
   id: string;
@@ -122,11 +123,31 @@ export default function SimpleCustomerScreen({ currentUser, onLogout }: SimpleCu
     }
   }, [currentUser]);
 
+  // Real-Time Chat Notification & Unread State
+  const [unreadChatOrderIds, setUnreadChatOrderIds] = useState<string[]>([]);
+  const [chatBanner, setChatBanner] = useState<{
+    visible: boolean;
+    senderName: string;
+    senderRole: string;
+    messageText: string;
+    orderId: string;
+    shopName: string;
+  }>({
+    visible: false,
+    senderName: '',
+    senderRole: '',
+    messageText: '',
+    orderId: '',
+    shopName: '',
+  });
+
   // In-App Customer-Merchant Chat State
   const [chatOrderId, setChatOrderId] = useState<string | null>(null);
   const [chatShopName, setChatShopName] = useState<string>('');
 
   const handleOpenChat = (orderId: string, shop: string) => {
+    setUnreadChatOrderIds(prev => prev.filter(id => id !== orderId));
+    setChatBanner(prev => (prev.orderId === orderId ? { ...prev, visible: false } : prev));
     setChatOrderId(orderId);
     setChatShopName(shop || 'Store');
   };
@@ -252,6 +273,25 @@ export default function SimpleCustomerScreen({ currentUser, onLogout }: SimpleCu
       );
     });
 
+    const unsubMessage = signalRService.onOrderMessage((msg: any) => {
+      if (!msg || !msg.orderId) return;
+      if (msg.senderRole === 'Merchant' || msg.senderRole === 'Delivery') {
+        setUnreadChatOrderIds(prev => (prev.includes(msg.orderId) ? prev : [...prev, msg.orderId]));
+        if (chatOrderId !== msg.orderId) {
+          const matched = myOrders.find(o => o.id === msg.orderId);
+          const shop = matched?.shopName || msg.senderName || 'Store';
+          setChatBanner({
+            visible: true,
+            senderName: msg.senderName || shop,
+            senderRole: msg.senderRole,
+            messageText: msg.messageText || '',
+            orderId: msg.orderId,
+            shopName: shop,
+          });
+        }
+      }
+    });
+
     const unsubProduct = signalRService.onProductUpdated(() => {
       if (selectedStore?.shopName) {
         fetchStoreProducts(selectedStore.shopName);
@@ -272,6 +312,7 @@ export default function SimpleCustomerScreen({ currentUser, onLogout }: SimpleCu
       unsubStatus();
       unsubStore();
       unsubProduct();
+      unsubMessage();
       clearInterval(interval);
     };
   }, [loadStores, loadMyOrders, selectedStore?.shopName, fetchStoreProducts]);
@@ -790,11 +831,13 @@ export default function SimpleCustomerScreen({ currentUser, onLogout }: SimpleCu
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
                           <Text style={styles.orderId}>Order #{item.id}</Text>
                           <TouchableOpacity
-                            style={styles.orderChatChip}
+                            style={[styles.orderChatChip, unreadChatOrderIds.includes(item.id) && styles.orderChatChipUnread]}
                             onPress={() => handleOpenChat(item.id, item.shopName)}
                           >
-                            <MessageSquare size={12} color="#007AFF" />
-                            <Text style={styles.orderChatChipText}>Chat</Text>
+                            <MessageSquare size={12} color={unreadChatOrderIds.includes(item.id) ? "#FFFFFF" : "#007AFF"} />
+                            <Text style={[styles.orderChatChipText, unreadChatOrderIds.includes(item.id) && styles.orderChatChipTextUnread]}>
+                              {unreadChatOrderIds.includes(item.id) ? '🔴 New Msg' : 'Chat'}
+                            </Text>
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -1110,11 +1153,13 @@ export default function SimpleCustomerScreen({ currentUser, onLogout }: SimpleCu
 
                     {/* Live Chat with Merchant Button */}
                     <TouchableOpacity
-                      style={styles.orderChatBottomBtn}
+                      style={[styles.orderChatBottomBtn, unreadChatOrderIds.includes(item.id) && styles.orderChatBottomBtnUnread]}
                       onPress={() => handleOpenChat(item.id, item.shopName)}
                     >
-                      <MessageSquare size={14} color="#007AFF" />
-                      <Text style={styles.orderChatBottomBtnText}>💬 Chat with {item.shopName}</Text>
+                      <MessageSquare size={14} color={unreadChatOrderIds.includes(item.id) ? "#DC2626" : "#007AFF"} />
+                      <Text style={[styles.orderChatBottomBtnText, unreadChatOrderIds.includes(item.id) && styles.orderChatBottomBtnTextUnread]}>
+                        {unreadChatOrderIds.includes(item.id) ? '🔴 New Message Waiting — Tap to Chat' : `💬 Chat with ${item.shopName}`}
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 );
@@ -1123,6 +1168,17 @@ export default function SimpleCustomerScreen({ currentUser, onLogout }: SimpleCu
           )}
         </View>
       )}
+
+      {/* Floating Real-Time Chat Notification Banner */}
+      <ChatNotificationBanner
+        visible={chatBanner.visible}
+        senderName={chatBanner.senderName}
+        senderRole={chatBanner.senderRole}
+        messageText={chatBanner.messageText}
+        orderId={chatBanner.orderId}
+        onPress={() => handleOpenChat(chatBanner.orderId, chatBanner.shopName)}
+        onDismiss={() => setChatBanner(prev => ({ ...prev, visible: false }))}
+      />
 
       {/* Real-Time Customer & Merchant Chat Modal */}
       {chatOrderId && (
@@ -1848,6 +1904,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#111827',
+  },
+  orderChatChipUnread: {
+    backgroundColor: '#EF4444',
+    borderColor: '#DC2626',
+  },
+  orderChatChipTextUnread: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  orderChatBottomBtnUnread: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#EF4444',
+    borderWidth: 1.5,
+  },
+  orderChatBottomBtnTextUnread: {
+    color: '#DC2626',
+    fontWeight: '800',
   },
   orderChatChip: {
     flexDirection: 'row',

@@ -1306,8 +1306,9 @@ public class OrdersController : ControllerBase
         _context.OrderMessages.Add(message);
         await _context.SaveChangesAsync();
 
-        // Broadcast ONLY to the specific order group
+        // Broadcast to the specific order group and to all connected clients
         await _hubContext.Clients.Group($"order_{id}").SendAsync("ReceiveOrderMessage", message);
+        await _hubContext.Clients.All.SendAsync("ReceiveOrderMessage", message);
 
         return Ok(message);
     }
