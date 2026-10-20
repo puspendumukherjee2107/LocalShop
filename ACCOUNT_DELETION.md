@@ -13,23 +13,31 @@ In compliance with Google Play Developer Policies, users of the **LocalShop** ap
 
 ---
 
-### How to Request Account Deletion (Steps for Users)
+### How to Request Account or Data Deletion (Steps for Users)
 
-To request deletion of your LocalShop account and associated personal data, please follow these steps:
+To request deletion of your LocalShop account or specific personal data without deleting your account, please follow these steps:
 
 1. Send an email to our support team at:  
    **`puspendumukherjee.2107@gmail.com`**
-2. Use the subject line:  
-   **`LocalShop - Account Deletion Request`**
+2. Use the relevant subject line:  
+   * For Full Account Deletion: **`LocalShop - Account Deletion Request`**
+   * For Partial Data Deletion (Without Account Deletion): **`LocalShop - Data Deletion Request`**
 3. In the body of the email, please provide:
    * Your **Registered Phone Number** (used to sign into the LocalShop app)
    * Your **Full Name** associated with the account
-   * Your account role (`Customer`, `Merchant`, or `Delivery Partner`)
-4. Confirm in the email: *"I confirm that I want to permanently delete my LocalShop account and all associated personal data."*
+   * The specific data you wish to delete (e.g., saved delivery addresses, specific order history, chat messages, or full account)
+4. Confirm in the email: *"I confirm that I request deletion of the specified data associated with my LocalShop account."*
 
 ---
 
-### What Data is Deleted
+### Partial Data Deletion (Without Deleting Account)
+Users can request the removal of specific data categories while keeping their active account:
+* **Delivery Addresses**: Users can request the removal of saved addresses.
+* **Order Chat Messages**: Users can request the clearing of past in-app chat transcripts with merchants.
+
+---
+
+### What Data is Deleted Upon Full Account Deletion
 Upon verification and processing of your request:
 * **Account Credentials & Profile**: Your name, phone number, and encrypted password hash will be permanently wiped from the database.
 * **Delivery Addresses**: All saved delivery addresses, street names, and location coordinates are permanently deleted.
