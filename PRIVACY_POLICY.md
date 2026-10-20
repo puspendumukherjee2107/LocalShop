@@ -1,18 +1,20 @@
-# Privacy Policy for LocalStore
+# Privacy Policy for LocalShop
 
-**Effective Date:** September 27, 2026  
-**App Name:** LocalStore  
-**Application ID:** `com.localstore.app`
+**Effective Date:** October 2026  
+**App Name:** LocalShop  
+**Application ID:** `com.localstore.app`  
+**Developer:** Puspendu Mukherjee  
+**Contact Email:** puspendumukherjee.2107@gmail.com
 
 ---
 
 ### 1. Introduction
-LocalStore ("we", "our", or "the App") is a hyperlocal commerce platform connecting customers with neighborhood merchants and delivery partners. This Privacy Policy describes how we collect, use, and protect your personal information.
+LocalShop ("we", "our", or "the App") is a hyperlocal commerce platform connecting customers with neighborhood merchants and delivery partners. This Privacy Policy describes how we collect, use, and protect your personal information.
 
 ---
 
 ### 2. Information We Collect
-When you register or use the LocalStore app, we collect the following information:
+When you register or use the LocalShop app, we collect the following information:
 
 1. **Personal Information**:
    * **Name**: To identify your profile and address you during order processing.
@@ -49,15 +51,15 @@ When you register or use the LocalStore app, we collect the following informatio
 
 ### 6. User Rights & Data Deletion
 You have the right to request deletion of your account and personal data at any time.  
-To request deletion of your account and associated order records, please contact our support team at:
-* **Email:** support@localstore.demo (or your registered contact email)
-* **Subject:** Account Deletion Request - LocalStore
-* Upon receipt of your request, your account and personal identifiers will be permanently removed from the database within 30 days.
+To request deletion of your account and associated records, please see our dedicated [Account Deletion Policy](ACCOUNT_DELETION.md) or contact us at:
+* **Email:** puspendumukherjee.2107@gmail.com
+* **Subject:** LocalShop - Account Deletion Request
+* Upon receipt of your request, your account and personal identifiers will be permanently removed from our active database within 7–14 business days (maximum 30 days).
 
 ---
 
 ### 7. Children's Privacy
-LocalStore does not knowingly collect information from children under the age of 13.
+LocalShop does not knowingly collect information from children under the age of 13.
 
 ---
 
