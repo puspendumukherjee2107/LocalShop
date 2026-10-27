@@ -291,6 +291,24 @@ static void SeedDemoAccounts(IServiceProvider services)
     EnsureDemoUser(db, "Merchant", "9876500000", "Tarama Stores", "Merchant@2026!", "Main Market");
     EnsureDemoUser(db, "Delivery", "delivery001", "Rohan Das", "Delivery@2026!", "City Hub");
 
+    if (!db.StoreProfiles.Any(s => s.ShopName == "Tarama Stores"))
+    {
+        db.StoreProfiles.Add(new StoreProfile
+        {
+            ShopName = "Tarama Stores",
+            OwnerName = "Tarama Stores",
+            Phone = "9876500000",
+            Category = "Groceries & Daily Essentials",
+            IsOpen = true,
+            OperatingHours = "08:00 AM - 09:30 PM",
+            DeliveryRadiusKm = 3.5,
+            MinOrderAmount = 100m,
+            TradeLicense = "TRD-992817",
+            KycStatus = "Approved",
+            UpdatedAt = DateTime.UtcNow
+        });
+    }
+
     db.SaveChanges();
 
     // Migrate any existing records with the legacy Kirana Junction shop name

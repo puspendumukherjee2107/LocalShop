@@ -67,7 +67,7 @@ export default function ChatNotificationBanner({
     });
   };
 
-  if (!visible && slideAnim._value === -140) return null;
+  if (!visible && (slideAnim as any)._value === -140) return null;
 
   const roleColor = senderRole === 'Merchant' ? '#10B981' : '#0284C7';
   const orderShortId = orderId ? orderId.slice(-6).toUpperCase() : '';

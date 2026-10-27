@@ -121,6 +121,26 @@ export default function SimpleMerchantScreen({ shopName = 'Tarama Stores', onLog
   const [chatCustomerName, setChatCustomerName] = useState<string>('');
   const [chatCustomerPhone, setChatCustomerPhone] = useState<string>('');
 
+  // Real-Time Chat Notification & Unread State
+  const [unreadChatOrderIds, setUnreadChatOrderIds] = useState<string[]>([]);
+  const [chatBanner, setChatBanner] = useState<{
+    visible: boolean;
+    senderName: string;
+    senderRole: string;
+    messageText: string;
+    orderId: string;
+    customerName: string;
+    customerPhone: string;
+  }>({
+    visible: false,
+    senderName: '',
+    senderRole: '',
+    messageText: '',
+    orderId: '',
+    customerName: '',
+    customerPhone: '',
+  });
+
   const handleOpenChat = (order: OrderItem) => {
     setChatOrderId(order.id);
     setChatCustomerName(order.customerName || 'Customer');

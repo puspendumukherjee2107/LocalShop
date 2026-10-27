@@ -36,14 +36,15 @@ public class StoresController : ControllerBase
     public async Task<IActionResult> GetAllStores()
     {
         var stores = await _context.StoreProfiles.ToListAsync();
-        if (!stores.Any(s => s.ShopName == "Gupta Supermarket"))
+        if (!stores.Any(s => s.ShopName == "Tarama Stores"))
         {
-            var extraStores = new List<StoreProfile>
+            var defaultStores = new List<StoreProfile>
             {
+                new() { ShopName = "Tarama Stores", OwnerName = "Tarama Stores", Phone = "9876500000", Category = "Groceries & Daily Essentials", IsOpen = true, OperatingHours = "08:00 AM - 09:30 PM", DeliveryRadiusKm = 3.5, MinOrderAmount = 100m, TradeLicense = "TRD-992817", KycStatus = "Approved" },
                 new() { ShopName = "Gupta Supermarket", Category = "Groceries & Spices", IsOpen = true, OperatingHours = "07:30 AM - 10:00 PM", DeliveryRadiusKm = 4.5, MinOrderAmount = 200m, TradeLicense = "TRD-998271", KycStatus = "Approved" },
                 new() { ShopName = "Deluxe Dairy Hub", Category = "Dairy & Bakery", IsOpen = false, OperatingHours = "06:00 AM - 08:30 PM", DeliveryRadiusKm = 2.0, MinOrderAmount = 100m, TradeLicense = "TRD-884710", KycStatus = "Pending" }
             };
-            _context.StoreProfiles.AddRange(extraStores);
+            _context.StoreProfiles.AddRange(defaultStores.Where(ds => !stores.Any(s => s.ShopName == ds.ShopName)));
             await _context.SaveChangesAsync();
             stores = await _context.StoreProfiles.ToListAsync();
         }
@@ -135,7 +136,21 @@ public class StoresController : ControllerBase
         var profile = await _context.StoreProfiles.FirstOrDefaultAsync(s => s.ShopName == shopName);
         if (profile == null)
         {
-            return NotFound(new { message = "Store profile not found." });
+            profile = new StoreProfile
+            {
+                ShopName = shopName,
+                OwnerName = shopName,
+                Category = "Groceries & Daily Essentials",
+                IsOpen = false,
+                OperatingHours = "08:00 AM - 09:30 PM",
+                DeliveryRadiusKm = 3.0,
+                MinOrderAmount = 100m,
+                TradeLicense = "TRD-992817",
+                KycStatus = "Approved",
+                UpdatedAt = DateTime.UtcNow
+            };
+            _context.StoreProfiles.Add(profile);
+            await _context.SaveChangesAsync();
         }
 
         profile.IsOpen = !profile.IsOpen;
